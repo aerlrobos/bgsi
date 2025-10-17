@@ -23,7 +23,7 @@ local HatchEvent = rs:WaitForChild("Shared")
 local remote = rs:FindFirstChild("Remotes") and rs.Remotes:FindFirstChild("PlayerDataChanged")
 local chestRemote = rs.Shared.Framework.Network.Remote.RemoteEvent
 local startTime = tick()
-local coins, gems, tickets, pearls, leaves = "N/A", "N/A", "N/A", "N/A"
+local coins, gems, tickets, pearls, candycorn = "N/A", "N/A", "N/A", "N/A"
 local totalHatches = 0
 
 local function autoChest()
@@ -130,8 +130,8 @@ coroutine.wrap(function()
             if value then pearls = value end
         end
         if leaves == "N/A" then
-            local value = getCurrencyAmount("Leaves")
-            if value then pearls = value end
+            local value = getCurrencyAmount("Candycorn")
+            if value then candycorn = value end
         end        
         wait(5)
     end
@@ -143,7 +143,7 @@ if remote then
         elseif name == "Gems" then gems = value
         elseif name == "Tickets" then tickets = value
         elseif name == "Pearls" then pearls = value
-        elseif name == "Leaves" then pearls = value
+        elseif name == "Candycorn" then pearls = value
         elseif name == "EggsOpened" and typeof(value) == "table" then
             local count = 0
             for _, v in pairs(value) do
@@ -399,9 +399,9 @@ local function sendDiscordWebhook(playerName, petName, variant, boostedStats, dr
     elseif boostedStats.Pearls then
         petCurrencyLabel = "<:pearls:1403707150513213550> **Pearls**"
         petCurrencyValue = tostring(boostedStats.Pearls)
-    elseif boostedStats.Leaves then
-        petCurrencyLabel = "<:leavess:1421417512347762700> **Leaves**"
-        petCurrencyValue = tostring(boostedStats.Leaves)
+    elseif boostedStats.Candycorn then
+        petCurrencyLabel = "<:candycorn:1428860442737901579> **Candycorn**"
+        petCurrencyValue = tostring(boostedStats.Candycorn)
     else
         petCurrencyLabel = "<:coins:1392626598188154977> **Coins**"
         petCurrencyValue = tostring(boostedStats.Coins or "N/A")
