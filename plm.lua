@@ -25,6 +25,8 @@ local chestRemote = rs.Shared.Framework.Network.Remote.RemoteEvent
 local startTime = tick()
 local coins, gems, tickets, pearls, candycorn = "N/A", "N/A", "N/A", "N/A"
 local totalHatches = 0
+local webhookQueue = {}
+local isProcessingQueue = false
 
 local function autoChest()
     local chests = {
@@ -371,7 +373,54 @@ coroutine.wrap(function()
     end
 end)()
 
-local function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier)
+local function processWebhookQueue()
+    if isProcessingQueue then return end
+    isProcessingQueue = true
+
+    while #webhookQueue > 0 do
+        local data = table.remove(webhookQueue, 1)
+
+        local function trySend(retries)
+            retries = retries or 3
+            for i = 1, retries do
+                local success, err = pcall(function()
+                    http_request({
+                        Url = data.webhookUrl,
+                        Method = "POST",
+                        Headers = { ["Content-Type"] = "application/json" },
+                        Body = HttpService:JSONEncode({
+                            content = data.contentText,
+                            embeds = {{
+                                author = {
+                                    name = "Pet Notification",
+                                    icon_url = "https://cdn.discordapp.com/avatars/1129886888958885928/243a7d079a2b7340cb54f43c1b87bfd9.webp?size=2048"
+                                },
+                                title = data.titleText,
+                                description = data.description,
+                                color = data.embedColor,
+                                thumbnail = data.petImageLink and { url = data.petImageLink } or nil
+                            }}
+                        })
+                    })
+                end)
+
+                if success then
+                    break
+                else
+                    warn("Webhook attempt "..i.." failed: "..tostring(err))
+                    wait(0.5)
+                end
+            end
+        end
+
+        trySend()
+        wait(0.5)
+    end
+
+    isProcessingQueue = false
+end
+
+function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier)
     local colorMap = {
         ["Normal"] = 65280,
         ["Shiny"] = 0xFFD700,
@@ -382,15 +431,10 @@ local function sendDiscordWebhook(playerName, petName, variant, boostedStats, dr
         ["Infinity"] = 0xFFFFFF
     }
 
-    local embedColor
-    if variant ~= "Normal" and colorMap[variant] then
-        embedColor = colorMap[variant]
-    else
-        embedColor = colorMap[rarity] or 65280
-    end
-
-    local hatchCount = abbreviateNumber(totalHatches)
+    local embedColor = colorMap[variant] or colorMap[rarity] or 65280
+    local displayPetName = (variant ~= "Normal" and variant.." " or "")..petName
     local petImageLink = getPetImageLink(petName, variant)
+    local hatchCount = abbreviateNumber(totalHatches)
 
     local petCurrencyLabel, petCurrencyValue = "", ""
     if boostedStats.Tickets then
@@ -409,11 +453,6 @@ local function sendDiscordWebhook(playerName, petName, variant, boostedStats, dr
 
     local userCoins = abbreviateNumber(getCurrencyAmount("Coins") or coins)
     local userPearls = abbreviateNumber(getCurrencyAmount("Pearls") or pearls)
-
-    local displayPetName = petName
-    if variant ~= "Normal" then
-        displayPetName = variant .. " " .. petName
-    end
 
     local description = string.format([[
 🎉・**Hatch Info**
@@ -452,39 +491,30 @@ local function sendDiscordWebhook(playerName, petName, variant, boostedStats, dr
     )
 
     local titleText, contentText = "", ""
-
-    local variantPrefix = (variant ~= "Normal") and variant:upper() .. " " or "NORMAL "
-
+    local variantPrefix = (variant ~= "Normal") and variant:upper().." " or "NORMAL "
     local contentRarity = rarity:upper()
 
     if rarity == "Infinity" then
         titleText = string.format("DAMN! ||%s|| hatched a %s! Unbelievable!", playerName, displayPetName)
-        contentText = "@everyone " .. variantPrefix .. contentRarity .. "!"
+        contentText = "@everyone "..variantPrefix..contentRarity.."!"
     elseif rarity == "Secret" or rarity == "Secret Bounty" then
         titleText = string.format("WOW! ||%s|| hatched a %s! Lucky Guy!", playerName, displayPetName)
-        contentText = "@everyone " .. variantPrefix .. contentRarity .. "!"
+        contentText = "@everyone "..variantPrefix..contentRarity.."!"
     else
         titleText = string.format("||%s|| hatched a %s", playerName, displayPetName)
+        contentText = ""
     end
 
-    http_request({
-        Url = webhookUrl,
-        Method = "POST",
-        Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode({
-            content = contentText,
-            embeds = {{
-                author = {
-                    name = "Pet Notification",
-                    icon_url = "https://cdn.discordapp.com/avatars/1129886888958885928/243a7d079a2b7340cb54f43c1b87bfd9.webp?size=2048"
-                },
-                title = titleText,
-                description = description,
-                color = embedColor,
-                thumbnail = petImageLink and { url = petImageLink } or nil
-            }}
-        })
+    table.insert(webhookQueue, {
+        webhookUrl = webhookUrl,
+        contentText = contentText,
+        titleText = titleText,
+        description = description,
+        embedColor = embedColor,
+        petImageLink = petImageLink
     })
+
+    processWebhookQueue()
 end
 
 HatchEvent.OnClientEvent:Connect(function(action, data)
