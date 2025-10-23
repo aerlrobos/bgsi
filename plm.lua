@@ -224,7 +224,7 @@ local function formatChance(chanceStr, variant)
     end
 
     local percentStr
-    if oneIn >= 100_000_000 then
+    if oneIn >= 100_000_001 then
         percentStr = string.format("%.0e", num) .. "%"
     else
         percentStr = string.format("%.10f", num):gsub("0+$", ""):gsub("%.$", "") .. "%"
@@ -381,7 +381,7 @@ local function sendDiscordWebhook(playerName, petName, variant, boostedStats, dr
         ["Secret Bounty"] = 0xFF8800,
         ["Infinity"] = 0xFFFFFF
     }
-    
+
     local embedColor
     if variant ~= "Normal" and colorMap[variant] then
         embedColor = colorMap[variant]
@@ -538,26 +538,31 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
 
         local dropChance, oneIn = formatChance(rawChance, variant)
 
-        if action == "ExclusiveHatch" then
-            if oneIn < 500 then
-                continue
+        local shouldSend = false
+        if rarity == "Secret" or rarity == "Secret Bounty" then
+            shouldSend = true
+        elseif action == "ExclusiveHatch" then
+            if oneIn >= 500 then
+                shouldSend = true
             end
         else
-            if oneIn < 1e6 then
-                continue
+            if oneIn >= 1e6 then
+                shouldSend = true
             end
         end
 
-        sendDiscordWebhook(
-            localPlayer.Name, 
-            petName, 
-            variant, 
-            boostedStats, 
-            dropChance,
-            eggName,  
-            rarity,   
-            tier      
-        )
+        if shouldSend then
+            sendDiscordWebhook(
+                localPlayer.Name, 
+                petName, 
+                variant, 
+                boostedStats, 
+                dropChance,
+                eggName,  
+                rarity,   
+                tier      
+            )
+        end
     end
 end)
 
@@ -738,12 +743,12 @@ task.spawn(function()
                 local multiplier = getRiftMultiplier(rift)
 
                 local isChestRift = rift.Name == "golden-chest" or rift.Name == "royal-chest" or rift.Name == "dice-rift" or rift.Name == "super-chest"
-                
+
                 -- verificare multiplier special
                 if rift.Name == "brainrot-rift" or rift.Name == "dev-rift" then
 
                 elseif rift.Name == "bubble-rift" then
-                
+
                 elseif not isChestRift then
                     if not multiplier or multiplier ~= 25 then
                         continue
