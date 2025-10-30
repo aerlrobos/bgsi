@@ -1,4 +1,3 @@
-
 local ENABLED = true
 local DIFFICULTIES_TO_CYCLE = { "Easy", "Medium", "Hard" }
 local TELEPORT_DELAY = 2.5
@@ -31,7 +30,9 @@ local function teleportTo(target)
     end
 end
 
+
 local function runObbyCycle(difficulty)
+    getgenv().tweening = true
     print("Starting obby: " .. difficulty)
     local teleportPart = ObbyTeleports:FindFirstChild(difficulty) 
         and ObbyTeleports[difficulty]:FindFirstChild("Portal") 
@@ -39,6 +40,7 @@ local function runObbyCycle(difficulty)
     local completePart = ObbysFolder:FindFirstChild(difficulty) and ObbysFolder[difficulty]:FindFirstChild("Complete")
     
     if not teleportPart or not completePart then
+       getgenv().tweening = false 
         return
     end
     
@@ -56,6 +58,7 @@ local function runObbyCycle(difficulty)
         RemoteEvent:FireServer("ClaimObbyChest")
         task.wait(0.7)
     end
+    getgenv().tweening = false
 end
 
 task.spawn(function()
