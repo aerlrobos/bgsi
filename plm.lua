@@ -730,17 +730,18 @@ task.spawn(function()
         ["magma-egg"]      = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["rainbow-egg"]    = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["lunar-egg"]      = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
+
+        -- Evenimente (aceeași adresă ca dev-rift)
         ["event-1"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["event-2"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["event-3"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["event-4"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["event-5"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA"
     }
-end)
 
     local RiftThumbnails = {
-        ["brainrot-rift"]  = "https://cdn.discordapp.com/attachments/1392217302153429022/1421466463730008115/Brainrot_Rift.png?ex=68d9234e&is=68d7d1ce&hm=f74c4ab185fa982236fb13a220e83807d75ac1664a72e40f95f4139ea3d9ea38&",
-        ["dev-rift"]  = "https://cdn.discordapp.com/attachments/1392217302153429022/1421466463172300830/Developer_Egg.png?ex=68d9234e&is=68d7d1ce&hm=8731c105261beec13c6bab8716cac86852e6af6321fc18bd17c90502b9b8f1db&",
+        ["brainrot-rift"]  = "https://cdn.discordapp.com/attachments/1392217302153429022/1421466463730008115/Brainrot_Rift.png",
+        ["dev-rift"]       = "https://cdn.discordapp.com/attachments/1392217302153429022/1421466463172300830/Developer_Egg.png",
         ["cyber-egg"]      = "https://cdn.discordapp.com/attachments/1392217302153429022/1393359748857860226/Cyber_Egg.png",
         ["super-chest"]    = "https://cdn.discordapp.com/attachments/1392217302153429022/1393866766161018921/Super_Chest.png",
         ["neon-egg"]       = "https://cdn.discordapp.com/attachments/1392217302153429022/1393866766421332068/Neon_Egg.png",
@@ -763,7 +764,9 @@ end)
 
     local function formatTitle(name)
         local displayName = name:gsub("-", " ")
-        return displayName:gsub("(%a)([%w_']*)", function(f, r) return f:upper() .. r:lower() end) .. " Rift Found!"
+        return displayName:gsub("(%a)([%w_']*)", function(f, r)
+            return f:upper() .. r:lower()
+        end) .. " Rift Found!"
     end
 
     local function getRiftMultiplier(rift)
@@ -783,14 +786,10 @@ end)
         for _, rift in pairs(workspace:GetDescendants()) do
             if rift:IsA("Model") and RiftWebhooks[rift.Name] then
                 local multiplier = getRiftMultiplier(rift)
-
                 local isChestRift = rift.Name == "golden-chest" or rift.Name == "royal-chest" or rift.Name == "dice-rift" or rift.Name == "super-chest"
 
-                -- verificare multiplier special
-                if rift.Name == "brainrot-rift" or rift.Name == "dev-rift" then
-
-                elseif rift.Name == "bubble-rift" then
-
+                if rift.Name == "bubble-rift" then
+                    -- caz special, poate fi oricând
                 elseif not isChestRift then
                     if not multiplier or multiplier ~= 25 then
                         continue
@@ -831,11 +830,11 @@ end)
                 table.insert(riftInfo, "- **Height:** " .. height)
 
                 local embedData = {
-                    ["content"] = (rift.Name == "brainrot-rift") and "@everyone BRAINROT RIFT APPEARED! JOIN NOW!" or (rift.Name == "dev-rift" and "@everyone DEV RIFT APPEARED! JOIN NOW!") or nil,
+                    ["content"] = (rift.Name == "dev-rift" and "@everyone DEV RIFT APPEARED! JOIN NOW!") or nil,
                     ["embeds"] = {{
                         ["title"] = formatTitle(rift.Name),
                         ["description"] = table.concat(riftInfo, "\n"),
-                        ["color"] = (rift.Name == "brainrot-rift" or rift.Name == "dev-rift") and 0x00FF00 or tonumber("2F3136", 16),
+                        ["color"] = (rift.Name == "dev-rift") and 0x00FF00 or tonumber("2F3136", 16),
                         ["author"] = {
                             ["name"] = "aerlrobos",
                             ["icon_url"] = "https://cdn.discordapp.com/attachments/1256255133545660511/1391365982353883266/1.png"
@@ -846,7 +845,7 @@ end)
                     }}
                 }
 
-                local req = http_request or request or syn and syn.request
+                local req = http_request or request or (syn and syn.request)
                 local webhook_url = RiftWebhooks[rift.Name]
 
                 if req and webhook_url then
@@ -859,7 +858,7 @@ end)
                         })
                     end)
                 else
-                    warn("Executorul nu suport request-uri.")
+                    warn("Executorul nu suportă request-uri HTTP.")
                 end
             end
         end
