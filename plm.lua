@@ -381,7 +381,7 @@ local function processWebhookQueue()
         local data = table.remove(webhookQueue, 1)
 
         local function trySend(retries)
-            retries = retries or 1000
+            retries = retries or 10
             for i = 1, retries do
                 local success, err = pcall(function()
                     http_request({
