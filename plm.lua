@@ -439,6 +439,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     else
         embedColor = colorMap["Normal"]
     end
+
     local displayPetName = (variant ~= "Normal" and variant.." " or "")..petName
     local petImageLink = getPetImageLink(petName, variant)
     local hatchCount = abbreviateNumber(totalHatches)
