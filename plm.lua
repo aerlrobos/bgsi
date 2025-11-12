@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local petsModule = require(rs.Shared.Data.Pets)
 local eggsModule = require(rs.Shared.Data.Eggs)
 local secretBountyUtil = require(rs.Shared.Utils.Stats.SecretBountyUtil)
+local LocalData = require(rs.Client.Framework.Services.LocalData)
 
 local webhookUrl = "https://discord.com/api/webhooks/1391374778882986035/KzVd6EaiXL73gd2YN_FIIHt-d36SeaKONLqsjPGiTDin65p_KrRBLfwr7saQpbXUZCFI"
 local serverLuckWebhookUrl = "https://discord.com/api/webhooks/1391368932761276436/eUsp8pJMsgzC3APxmw_qN64bWZrWyKEUIZraHTLFLUqi7yh0TMvXWEVBl3AnkHjMSfXi"
@@ -13,6 +14,7 @@ local bountyWebhook = "https://discord.com/api/webhooks/1407847455902662768/xWn9
 local localPlayer = Players.LocalPlayer
 print("Roblox Name: " .. localPlayer.Name)
 local luckNotificationSent = false
+local failedFile = "FailedWebhooks.json"
 
 local HatchEvent = rs:WaitForChild("Shared")
     :WaitForChild("Framework")
@@ -20,11 +22,27 @@ local HatchEvent = rs:WaitForChild("Shared")
     :WaitForChild("Remote")
     :WaitForChild("RemoteEvent")
 
-local remote = rs:FindFirstChild("Remotes") and rs.Remotes:FindFirstChild("PlayerDataChanged")
 local chestRemote = rs.Shared.Framework.Network.Remote.RemoteEvent
 local startTime = tick()
-local coins, gems, tickets, pearls, candycorn = "N/A", "N/A", "N/A", "N/A"
-local totalHatches = 0
+local coins, gems, tickets, pearls, totalHatches = 0, 0, 0, 0, 0
+
+local function updateCurrencies()
+    local data = LocalData:Get()
+    if not data then return end
+
+    coins = data.Coins or (data.Stats and data.Stats.Coins) or coins
+    gems = data.Gems or (data.Stats and data.Stats.Gems) or gems
+    tickets = data.Tickets or (data.Stats and data.Stats.Tickets) or tickets
+    pearls = data.Pearls or (data.Stats and data.Stats.Pearls) or pearls
+    totalHatches = data.Stats and data.Stats.Hatches or totalHatches
+end
+
+LocalData.Changed:Connect(function()
+    pcall(updateCurrencies)
+end)
+
+pcall(updateCurrencies)
+
 local webhookQueue = {}
 local isProcessingQueue = false
 
@@ -87,73 +105,6 @@ local function autoClaimSeasonReward()
         claim()
         task.wait(5)
     end
-end
-
-local function getCurrencyAmount(currencyName)
-        local success, result = pcall(function()
-                local label = localPlayer:WaitForChild("PlayerGui")
-                        :WaitForChild("ScreenGui")
-                        :WaitForChild("HUD")
-                        :WaitForChild("Left")
-                        :WaitForChild("Currency")
-                        :WaitForChild(currencyName)
-                        :WaitForChild("Frame")
-                        :WaitForChild("Label")
-
-                local text = label.Text
-                local cleanText = text:gsub(",", "")
-                local number = tonumber(cleanText)
-                return number
-        end)
-
-        if success then
-                return result
-        else
-                return nil
-        end
-end
-
-coroutine.wrap(function()
-    while true do
-        if coins == "N/A" then
-            local value = getCurrencyAmount("Coins")
-            if value then coins = value end
-        end
-        if gems == "N/A" then
-            local value = getCurrencyAmount("Gems")
-            if value then gems = value end
-        end
-        if tickets == "N/A" then
-            local value = getCurrencyAmount("Tickets")
-            if value then tickets = value end
-        end
-        if pearls == "N/A" then
-            local value = getCurrencyAmount("Pearls")
-            if value then pearls = value end
-        end
-        if leaves == "N/A" then
-            local value = getCurrencyAmount("Candycorn")
-            if value then candycorn = value end
-        end        
-        wait(5)
-    end
-end)()
-
-if remote then
-    remote.OnClientEvent:Connect(function(name, value)
-        if name == "Coins" then coins = value
-        elseif name == "Gems" then gems = value
-        elseif name == "Tickets" then tickets = value
-        elseif name == "Pearls" then pearls = value
-        elseif name == "Candycorn" then pearls = value
-        elseif name == "EggsOpened" and typeof(value) == "table" then
-            local count = 0
-            for _, v in pairs(value) do
-                count = count + (tonumber(v) or 0)
-            end
-            totalHatches = count
-        end
-    end)
 end
 
 local function getBountyPetImageLink(petName)
@@ -249,6 +200,24 @@ local function formatPlaytime()
     table.insert(parts, seconds .. "s")
 
     return table.concat(parts, " ")
+end
+
+local function loadFailedWebhooks()
+    if not isfile(failedFile) then return {} end
+    local ok, data = pcall(function() return HttpService:JSONDecode(readfile(failedFile)) end)
+    return ok and data or {}
+end
+
+local function saveFailedWebhook(entry)
+    local failed = loadFailedWebhooks()
+    table.insert(failed, entry)
+    pcall(function()
+        writefile(failedFile, HttpService:JSONEncode(failed))
+    end)
+end
+
+local function enqueueWebhook(data)
+    table.insert(webhookQueue, data)
 end
 
 local function isSecretBounty(petName)
@@ -373,51 +342,67 @@ coroutine.wrap(function()
     end
 end)()
 
-local function processWebhookQueue()
-    if isProcessingQueue then return end
-    isProcessingQueue = true
-
-    while #webhookQueue > 0 do
-        local data = table.remove(webhookQueue, 1)
-
-        local function trySend(retries)
-            retries = retries or 10
-            for i = 1, retries do
-                local success, err = pcall(function()
-                    http_request({
-                        Url = data.webhookUrl,
-                        Method = "POST",
-                        Headers = { ["Content-Type"] = "application/json" },
-                        Body = HttpService:JSONEncode({
-                            content = data.contentText,
-                            embeds = {{
-                                author = {
-                                    name = "Pet Notification",
-                                    icon_url = "https://cdn.discordapp.com/avatars/1129886888958885928/243a7d079a2b7340cb54f43c1b87bfd9.webp?size=2048"
-                                },
-                                title = data.titleText,
-                                description = data.description,
-                                color = data.embedColor,
-                                thumbnail = data.petImageLink and { url = data.petImageLink } or nil
-                            }}
-                        })
-                    })
-                end)
-
-                if success then
-                    break
-                else
-                    warn("Webhook attempt "..i.." failed: "..tostring(err))
-                    wait(0.5)
-                end
-            end
-        end
-
-        trySend()
-        wait(0.5)
-    end
-
-    isProcessingQueue = false
+local function processWebhookQueue()    
+    if isProcessingQueue then return end    
+    isProcessingQueue = true    
+    
+    while #webhookQueue > 0 do    
+        local data = table.remove(webhookQueue, 1)    
+        local sent, lastErr = false, nil    
+    
+        for i = 1, 1000 do    
+            local ok, err = pcall(function()    
+                http_request({    
+                    Url = webhookUrl,    
+                    Method = "POST",    
+                    Headers = { ["Content-Type"] = "application/json" },    
+                    Body = HttpService:JSONEncode({    
+                        content = data.contentText,    
+                        embeds = {{    
+                            author = {    
+                                name = "OTC",    
+                                icon_url = "https://cdn.discordapp.com/avatars/1409528801511346348/68958c254255476cf834a3aac99d4936.webp?size=2048"    
+                            },    
+                            title = data.titleText,    
+                            description = data.description,    
+                            color = data.embedColor,    
+                            thumbnail = data.petImageLink and { url = data.petImageLink } or nil    
+                        }}    
+                    })    
+                })    
+            end)    
+    
+            if ok then    
+                sent = true    
+                break    
+            else    
+                lastErr = tostring(err)    
+                warn(string.format("[⚠️ Attempt %d/1000 failed] %s", i, lastErr))    
+                if string.find(lastErr, "522") or string.find(lastErr, "Timed") then    
+                    task.wait(1)    
+                else    
+                    break    
+                end    
+            end    
+        end    
+    
+        if not sent then    
+            warn("[❌ Webhook Dropped] Failed after all retries")    
+            saveFailedWebhook({    
+                time = os.date("%Y-%m-%d %H:%M:%S"),    
+                error = lastErr or "Unknown",    
+                webhookUrl = data.webhookUrl,    
+                contentText = data.contentText,    
+                titleText = data.titleText,    
+                description = data.description,    
+                embedColor = data.embedColor    
+            })    
+        end    
+    
+        task.wait(0.25)    
+    end    
+    
+    isProcessingQueue = false    
 end
 
 function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier)
@@ -446,21 +431,20 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
 
     local petCurrencyLabel, petCurrencyValue = "", ""
     if boostedStats.Tickets then
-        petCurrencyLabel = "<:ticket:1392626567464747028> **Tickets**"
+        petCurrencyLabel = "<:ticket:1392626567464747028> Tickets"
         petCurrencyValue = tostring(boostedStats.Tickets)
     elseif boostedStats.Pearls then
-        petCurrencyLabel = "<:pearls:1403707150513213550> **Pearls**"
+        petCurrencyLabel = "<:pearls:1403707150513213550> Pearls"
         petCurrencyValue = tostring(boostedStats.Pearls)
-    elseif boostedStats.Candycorn then
-        petCurrencyLabel = "<:candycorn:1428860442737901579> **Candycorn**"
-        petCurrencyValue = tostring(boostedStats.Candycorn)
     else
-        petCurrencyLabel = "<:coins:1392626598188154977> **Coins**"
+        petCurrencyLabel = "<:coins:1392626598188154977> Coins"
         petCurrencyValue = tostring(boostedStats.Coins or "N/A")
     end
 
-    local userCoins = abbreviateNumber(getCurrencyAmount("Coins") or coins)
-    local userPearls = abbreviateNumber(getCurrencyAmount("Pearls") or pearls)
+    local userCoins = abbreviateNumber(coins)
+    local userGems = abbreviateNumber(gems)
+    local userTickets = abbreviateNumber(tickets)
+    local userPearls = abbreviateNumber(pearls)
 
     local description = string.format([[
 🎉・**Hatch Info**
@@ -494,8 +478,8 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
         hatchCount,
         userCoins,
         userPearls,
-        abbreviateNumber(getCurrencyAmount("Gems") or gems),
-        abbreviateNumber(getCurrencyAmount("Tickets") or tickets)
+        userGems,
+        userTickets
     )
 
     local titleText, contentText = "", ""
@@ -513,8 +497,8 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
         contentText = ""
     end
 
-    table.insert(webhookQueue, {
-        webhookUrl = webhookUrl,
+    enqueueWebhook({
+        webhookUrl = activeWebhook,
         contentText = contentText,
         titleText = titleText,
         description = description,
@@ -522,7 +506,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
         petImageLink = petImageLink
     })
 
-    processWebhookQueue()
+    task.spawn(processWebhookQueue)
 end
 
 HatchEvent.OnClientEvent:Connect(function(action, data)
@@ -730,14 +714,7 @@ task.spawn(function()
         ["spikey-egg"]     = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["magma-egg"]      = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
         ["rainbow-egg"]    = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
-        ["lunar-egg"]      = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
-
-        -- Evenimente (aceeași adresă ca dev-rift)
-        ["event-1"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
-        ["event-2"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
-        ["event-3"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
-        ["event-4"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA",
-        ["event-5"]        = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA"
+        ["lunar-egg"]      = "https://discord.com/api/webhooks/1396399702282473554/Bl0wYsDFPB97EPqKeojXv5JsV2UYaMo_wGwgdo_rjpsQXAUTOHxf2Kzo1JGDZvzpGzFA"
     }
 
     local RiftThumbnails = {
@@ -806,7 +783,7 @@ task.spawn(function()
                 alreadyNotified[riftId] = true
 
                 local now = os.time()
-                local despawn_time = now + 1800
+                local despawn_time = now + 3600
                 local timestamp = "<t:" .. despawn_time .. ":R>"
                 local player_count = #Players:GetPlayers()
                 local join_link = "https://fern.wtf/joiner?placeId=" .. game.PlaceId .. "&gameInstanceId=" .. game.JobId
