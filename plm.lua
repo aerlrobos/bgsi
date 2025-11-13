@@ -406,12 +406,27 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     }
 
     local embedColor
-    if colorMap[variant] then
-        embedColor = colorMap[variant]
-    elseif colorMap[rarity] then
-        embedColor = colorMap[rarity]
+
+    if rarity == "Infinity" then
+        embedColor = colorMap["Infinity"]
+
+    elseif rarity == "Secret" or rarity == "Secret Bounty" then
+        if variant == "Shiny" then
+            embedColor = colorMap["Shiny"]
+        elseif variant == "Mythic" then
+            embedColor = colorMap["Mythic"]
+        elseif variant == "Shiny Mythic" then
+            embedColor = colorMap["Shiny Mythic"]
+        else
+            embedColor = colorMap["Secret"]
+        end
+
     else
-        embedColor = colorMap["Normal"]
+        if colorMap[variant] then
+            embedColor = colorMap[variant]
+        else
+            embedColor = colorMap["Normal"]
+        end
     end
 
     local displayPetName = (variant ~= "Normal" and variant.." " or "")..petName
