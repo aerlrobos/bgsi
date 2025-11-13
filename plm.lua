@@ -342,68 +342,57 @@ coroutine.wrap(function()
     end
 end)()
 
-local function processWebhookQueue()    
-    if isProcessingQueue then return end    
-    isProcessingQueue = true    
-    
-    while #webhookQueue > 0 do    
-        local data = table.remove(webhookQueue, 1)    
-        local sent, lastErr = false, nil    
-    
-        for i = 1, 1000 do    
-            local ok, err = pcall(function()    
-                http_request({    
-                    Url = webhookUrl,    
-                    Method = "POST",    
-                    Headers = { ["Content-Type"] = "application/json" },    
-                    Body = HttpService:JSONEncode({    
-                        content = data.contentText,    
-                        embeds = {{    
-                            author = {    
-                                name = "OTC",    
-                                icon_url = "https://cdn.discordapp.com/avatars/1409528801511346348/68958c254255476cf834a3aac99d4936.webp?size=2048"    
-                            },    
-                            title = data.titleText,    
-                            description = data.description,    
-                            color = data.embedColor,    
-                            thumbnail = data.petImageLink and { url = data.petImageLink } or nil    
-                        }}    
-                    })    
-                })    
-            end)    
-    
-            if ok then    
-                sent = true    
-                break    
-            else    
-                lastErr = tostring(err)    
-                warn(string.format("[⚠️ Attempt %d/1000 failed] %s", i, lastErr))    
-                if string.find(lastErr, "522") or string.find(lastErr, "Timed") then    
-                    task.wait(1)    
-                else    
-                    break    
-                end    
-            end    
-        end    
-    
-        if not sent then    
-            warn("[❌ Webhook Dropped] Failed after all retries")    
-            saveFailedWebhook({    
-                time = os.date("%Y-%m-%d %H:%M:%S"),    
-                error = lastErr or "Unknown",    
-                webhookUrl = data.webhookUrl,    
-                contentText = data.contentText,    
-                titleText = data.titleText,    
-                description = data.description,    
-                embedColor = data.embedColor    
-            })    
-        end    
-    
-        task.wait(0.25)    
-    end    
-    
-    isProcessingQueue = false    
-end
+task.spawn(function()
+    local req = http_request or request or (syn and syn.request)
+    if not req then
+        warn("⚠️ Executorul nu suportă http_request — webhook-urile nu pot fi trimise.")
+        return
+    end
+
+    local failed = loadFailedWebhooks()
+    if #failed > 0 then
+        print("[♻️] Retrimit webhook-uri ratate: " .. tostring(#failed))
+        for _, v in pairs(failed) do
+            table.insert(webhookQueue, v)
+        end
+        delfile(failedFile)
+    end
+
+    while true do
+        if #webhookQueue > 0 then
+            local data = table.remove(webhookQueue, 1)
+            local success, err = pcall(function()
+                req({
+                    Url = data.webhookUrl or webhookUrl,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = HttpService:JSONEncode({
+                        content = data.contentText,
+                        embeds = {{
+                            author = {
+                                name = "OTC",
+                                icon_url = "https://cdn.discordapp.com/avatars/1409528801511346348/68958c254255476cf834a3aac99d4936.webp?size=2048"
+                            },
+                            title = data.titleText,
+                            description = data.description,
+                            color = data.embedColor,
+                            thumbnail = data.petImageLink and { url = data.petImageLink } or nil
+                        }}
+                    })
+                })
+            end)
+
+            if not success then
+                warn("[❌ Webhook Fail] " .. tostring(err))
+                saveFailedWebhook(data)
+            else
+                task.wait(0.5)
+            end
+        else
+            task.wait(1)
+        end
+    end
+end)
 
 function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier)
     local colorMap = {
@@ -417,10 +406,10 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     }
 
     local embedColor
-    if colorMap[rarity] then
-        embedColor = colorMap[rarity]
-    elseif colorMap[variant] then
+    if colorMap[variant] then
         embedColor = colorMap[variant]
+    elseif colorMap[rarity] then
+        embedColor = colorMap[rarity]
     else
         embedColor = colorMap["Normal"]
     end
@@ -498,15 +487,13 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     end
 
     enqueueWebhook({
-        webhookUrl = activeWebhook,
+        webhookUrl = webhookUrl,
         contentText = contentText,
         titleText = titleText,
         description = description,
         embedColor = embedColor,
         petImageLink = petImageLink
-    })
-
-    task.spawn(processWebhookQueue)
+    })    
 end
 
 HatchEvent.OnClientEvent:Connect(function(action, data)
