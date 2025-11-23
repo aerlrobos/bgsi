@@ -238,49 +238,6 @@ local SevenSeasAreas = {
     ["Classic Island"]=Vector3.new(-41517.89,15.96,-20451.51)
 }
 
-local AutoDiscoverSection = Tabs.Aerlro:CreateSection("▶ Auto Discover")
-local WorldDropdown = AutoDiscoverSection:CreateDropdown("WorldSelect", {
-    Title="Select Worlds",
-    Description="Choose worlds to auto discover",
-    Values={"The Overworld","Minigame Paradise"},
-    Multi=true,
-    Default={}
-})
-WorldDropdown:OnChanged(function(vals) WorldsConfig.SelectedWorlds = vals end)
-
-local AutoDiscoverToggle = AutoDiscoverSection:CreateToggle("AutoDiscoverIslands", {Title="Auto Discover Islands", Default=false})
-AutoDiscoverToggle:OnChanged(function(val)
-    WorldsConfig.AutoDiscover = val
-    if not val then return end
-
-    local RS = game:GetService("ReplicatedStorage")
-    local ok, LocalData = pcall(require, RS.Client.Framework.Services.LocalData)
-    if not ok then warn("⚠️ LocalData module missing.") return end
-
-    local function getCoins()
-        local d = LocalData:Get()
-        return d and d.Coins or 0
-    end
-
-    task.spawn(function()
-        while WorldsConfig.AutoDiscover do
-            for _, world in ipairs(WorldsConfig.SelectedWorlds) do
-                if world=="Minigame Paradise" and getCoins()<1e9 then continue end
-                local list = Islands[world]
-                if world=="Minigame Paradise" then list={list[3],list[2],list[1],list[4]} end
-                for _, island in ipairs(list or {}) do
-                    if not WorldsConfig.AutoDiscover then break end
-                    teleportTo(island.Pos)
-                    task.wait(3)
-                end
-            end
-            WorldsConfig.AutoDiscover = false
-            AutoDiscoverToggle:SetValue(false)
-            break
-        end
-    end)
-end)
-
 local TeleportSection = Tabs.Aerlro:CreateSection("▶ Teleport")
 local TeleportList = {}
 for _,i in pairs(Islands) do for _,v in ipairs(i) do table.insert(TeleportList, v.Name) end end
@@ -472,7 +429,24 @@ end)
 Tabs.Aerlro:CreateSection("▶ Island Chests")local ChestDropdown=Tabs.Aerlro:CreateDropdown("ChestSelect",{Title="Select Chests",Description="Choose which chests to auto claim",Values={"Giant Chest","Void Chest","Ticket Chest","Infinity Chest"},Multi=true,Default={}})ChestDropdown:OnChanged(function(vals)getgenv().MiscConfig.SelectedChests={}for n,s in pairs(vals)do if s then table.insert(getgenv().MiscConfig.SelectedChests,n)end end end)local ChestToggle=Tabs.Aerlro:CreateToggle("AutoIslandChests",{Title="Auto Island Chests",Default=false})ChestToggle:OnChanged(function(v)getgenv().MiscConfig.AutoIslandChests=v end)task.spawn(function()while true do local cfg=getgenv().MiscConfig if cfg.AutoIslandChests and #cfg.SelectedChests>0 then local playerData=LocalData:Get()if playerData and playerData.Cooldowns then for _,chestName in ipairs(cfg.SelectedChests)do local cd=playerData.Cooldowns[chestName]or 0 if os.time()>=cd then pcall(function()RemoteEvent:FireServer("ClaimChest",chestName)end)task.wait(1)end end end end task.wait(2)end end)
 
 local PowerupsSection=Tabs.Aerlro:CreateSection("▶ Powerups") local eggList={} for name,_ in pairs(Powerups)do if string.find(name:lower(),"egg")then table.insert(eggList,name)end end table.sort(eggList) local EggDropdown=PowerupsSection:AddDropdown("PowerupsEggsSelect",{Title="Select Powerup Egg",Values=eggList,Multi=false,Default=getgenv().MiscConfig.SelectedPowerupEgg or nil,Callback=function(v)getgenv().MiscConfig.SelectedPowerupEgg=v end}) PowerupsSection:AddToggle("AutoHatchPowerupsEggs",{Title="Auto Hatch Powerups Eggs",Default=getgenv().MiscConfig.AutoHatchPowerupsEggs or false,Callback=function(v)getgenv().MiscConfig.AutoHatchPowerupsEggs=v end}) local function hatchEgg(e)pcall(function()RemoteEvent:FireServer("HatchPowerupEgg",e,12)end)end task.spawn(function()while true do local cfg=getgenv().MiscConfig if cfg.AutoHatchPowerupsEggs and cfg.SelectedPowerupEgg then hatchEgg(cfg.SelectedPowerupEgg)end task.wait(0.5)end end)
-local boxList={}for n,_ in pairs(Powerups)do local l=n:lower()if l:find("box")or l:find("crate")then table.insert(boxList,n)end end;table.sort(boxList)PowerupsSection:AddDropdown("BoxesSelect",{Title="Select Box",Values=boxList,Multi=false,Default=getgenv().MiscConfig.SelectedBox or nil,Callback=function(v)getgenv().MiscConfig.SelectedBox=v end})PowerupsSection:AddToggle("AutoOpenBoxes",{Title="Auto Open Boxes",Default=getgenv().MiscConfig.AutoOpenBoxes or false,Callback=function(v)getgenv().MiscConfig.AutoOpenBoxes=v end})local function hasBoxAvailable(box)local ok,data=pcall(function()return LocalData:Get()end)if not ok or not data or not data.Powerups then return false end;local amount=data.Powerups[box]return amount and amount>0 end;local function useBox(box)if hasBoxAvailable(box)then pcall(function()RemoteEvent:FireServer("UseGift",box,50)end)end end;local function tapNearbyGifts()pcall(function()local gifts=PhysicalItem:GetActiveGifts()local hrp=LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")if not hrp then return end;for obj,gift in pairs(gifts)do if gift and gift.InRange and gift.Hit then gift:Hit()end end end)end;task.spawn(function()while true do local cfg=getgenv().MiscConfig;if cfg.AutoHatchPowerupsEggs and cfg.SelectedPowerupEgg then hatchEgg(cfg.SelectedPowerupEgg)end;if cfg.AutoOpenBoxes and cfg.SelectedBox then useBox(cfg.SelectedBox)tapNearbyGifts()end;task.wait(0.1)end end)
+local boxList={}for n,_ in pairs(Powerups)do local l=n:lower()if l:find("box")or l:find("crate")then table.insert(boxList,n)end end;table.sort(boxList)PowerupsSection:AddDropdown("BoxesSelect",{Title="Select Box",Values=boxList,Multi=false,Default=getgenv().MiscConfig.SelectedBox or nil,Callback=function(v)getgenv().MiscConfig.SelectedBox=v end})PowerupsSection:AddToggle("AutoOpenBoxes",{Title="Auto Open Boxes",Default=getgenv().MiscConfig.AutoOpenBoxes or false,Callback=function(v)getgenv().MiscConfig.AutoOpenBoxes=v end})local function hasBoxAvailable(b)local ok,data=pcall(function()return LocalData:Get()end)if not ok or not data or not data.Powerups then return false end;local a=data.Powerups[b]return a and a>0 end
+local function useBox(b)if hasBoxAvailable(b)then pcall(function()RemoteEvent:FireServer("UseGift",b,50)end)end end
+local function tapNearbyGifts()pcall(function()
+    local hrp=LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local gifts=PhysicalItem:GetActiveGifts() or {}
+    for _,gift in pairs(gifts)do if gift and gift.InRange and gift.Hit then gift:Hit() end end
+end)
+end
+
+task.spawn(function()
+    while true do
+        local cfg=getgenv().MiscConfig
+        if cfg.AutoHatchPowerupsEggs and cfg.SelectedPowerupEgg then pcall(function()RemoteEvent:FireServer("HatchPowerupEgg",cfg.SelectedPowerupEgg,12)end) end
+        if cfg.AutoOpenBoxes and cfg.SelectedBox then useBox(cfg.SelectedBox) tapNearbyGifts() end
+        task.wait(0.1)
+    end
+end)
 
 -- AUTO PLAYTIME, SEASON, WHEEL SPINS
 Tabs.Aerlro:CreateSection("▶ Other")
