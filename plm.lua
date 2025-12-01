@@ -520,6 +520,7 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
         if not pet then continue end
 
         local petName = pet.Name or "Unknown"
+
         local variant = "Normal"
         if pet.Shiny and pet.Mythic then
             variant = "Shiny Mythic"
@@ -560,31 +561,30 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
             rawChance = petEntry.Chance or "Unknown"
         end
 
-        local dropChance, oneIn = formatChance(rawChance, variant)
+        local dropChance = formatChance(rawChance, variant)
 
         local shouldSend = false
-        if rarity == "Secret" or rarity == "Secret Bounty" then
+
+        if rarity == "Infinity" then
+            shouldSend = true
+        elseif rarity == "Secret" or rarity == "Secret Bounty" then
             shouldSend = true
         elseif action == "ExclusiveHatch" then
-            if oneIn >= 500 then
-                shouldSend = true
-            end
-        else
-            if oneIn >= 1e6 then
+            if rarity == "Infinity" or rarity == "Secret" or rarity == "Secret Bounty" then
                 shouldSend = true
             end
         end
 
         if shouldSend then
             sendDiscordWebhook(
-                localPlayer.Name, 
-                petName, 
-                variant, 
-                boostedStats, 
+                localPlayer.Name,
+                petName,
+                variant,
+                boostedStats,
                 dropChance,
-                eggName,  
-                rarity,   
-                tier      
+                eggName,
+                rarity,
+                tier
             )
         end
     end
