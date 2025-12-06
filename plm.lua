@@ -24,7 +24,7 @@ local HatchEvent = rs:WaitForChild("Shared")
 
 local chestRemote = rs.Shared.Framework.Network.Remote.RemoteEvent
 local startTime = tick()
-local coins, gems, tickets, pearls, totalHatches = 0, 0, 0, 0, 0
+local coins, gems, tickets, pearls, snowflakes, totalHatches = 0, 0, 0, 0, 0
 
 local function updateCurrencies()
     local data = LocalData:Get()
@@ -34,6 +34,7 @@ local function updateCurrencies()
     gems = data.Gems or (data.Stats and data.Stats.Gems) or gems
     tickets = data.Tickets or (data.Stats and data.Stats.Tickets) or tickets
     pearls = data.Pearls or (data.Stats and data.Stats.Pearls) or pearls
+    snowflakes = data.Snowflakes or (data.Stats and data.Stats.Snowflakes) or snowflakes
     totalHatches = data.Stats and data.Stats.Hatches or totalHatches
 end
 
@@ -440,6 +441,9 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     elseif boostedStats.Pearls then
         petCurrencyLabel = "<:pearls:1403707150513213550> Pearls"
         petCurrencyValue = tostring(boostedStats.Pearls)
+    elseif boostedStats.Snowflakes then
+        petCurrencyLabel = "<:snowflakes:1446973115765755998> Snowflakes"
+        petCurrencyValue = tostring(boostedStats.Snowflakes)
     else
         petCurrencyLabel = "<:coins:1392626598188154977> Coins"
         petCurrencyValue = tostring(boostedStats.Coins or "N/A")
