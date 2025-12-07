@@ -203,6 +203,24 @@ local function formatPlaytime()
     return table.concat(parts, " ")
 end
 
+local function toOrdinal(n)
+    local suffix = "TH"
+    if n % 10 == 1 and n % 100 ~= 11 then
+        suffix = "ST"
+    elseif n % 10 == 2 and n % 100 ~= 12 then
+        suffix = "ND"
+    elseif n % 10 == 3 and n % 100 ~= 13 then
+        suffix = "RD"
+    end
+    return tostring(n)..suffix
+end
+
+local function getPetCount(playerId, petName, variant)
+    local discovered = LocalData:Get(playerId, "Discovered") or {}
+    local key = (variant ~= "Normal" and variant.." " or "") .. petName
+    return discovered[key] or 0
+end
+
 local function loadFailedWebhooks()
     if not isfile(failedFile) then return {} end
     local ok, data = pcall(function() return HttpService:JSONDecode(readfile(failedFile)) end)
@@ -490,19 +508,23 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
         userTickets
     )
 
+    local petCount = getPetCount(playerName, petName, variant) + 1
+    local ordinalCount = toOrdinal(petCount)
+    local variantPrefix = (variant ~= "Normal" and variant:upper().." " or "NORMAL ")
+    local specialMessage = string.format("THIS IS YOUR %s %s PET!", ordinalCount, variant:upper())
+
     local titleText, contentText = "", ""
-    local variantPrefix = (variant ~= "Normal") and variant:upper().." " or "NORMAL "
     local contentRarity = rarity:upper()
 
     if rarity == "Infinity" then
         titleText = string.format("DAMN! ||%s|| hatched a %s! Unbelievable!", playerName, displayPetName)
-        contentText = "@everyone "..variantPrefix..contentRarity.."!"
+        contentText = "@everyone "..variantPrefix..contentRarity.."! "..specialMessage
     elseif rarity == "Secret" or rarity == "Secret Bounty" then
         titleText = string.format("WOW! ||%s|| hatched a %s! Lucky Guy!", playerName, displayPetName)
-        contentText = "@everyone "..variantPrefix..contentRarity.."!"
+        contentText = "@everyone "..variantPrefix..contentRarity.."! "..specialMessage
     else
         titleText = string.format("||%s|| hatched a %s", playerName, displayPetName)
-        contentText = ""
+        contentText = specialMessage
     end
 
     enqueueWebhook({
