@@ -217,7 +217,15 @@ end
 
 local function getPetCount(playerId, petName, variant)
     local discovered = LocalData:Get(playerId, "Discovered") or {}
-    local key = (variant ~= "Normal" and variant.." " or "") .. petName
+
+    -- Dacă varianta e "Normal", nu adăugăm prefix
+    local key
+    if variant == "Normal" then
+        key = petName  -- Normal -> cheia e doar numele
+    else
+        key = variant .. " " .. petName  -- Shiny, etc.
+    end
+
     return discovered[key] or 0
 end
 
