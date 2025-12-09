@@ -216,13 +216,14 @@ local function toOrdinal(n)
 end
 
 local function getPetCount(playerId, petName, variant)
-    local discovered = LocalData:Get(playerId, "Discovered") or {}
+    local allData = LocalData:Get(playerId) or {}
+    local discovered = allData["Discovered"] or {}
 
     local key
     if variant == "Normal" then
-        key = petName  -- Normal -> cheia e doar numele
+        key = petName  -- Normal
     else
-        key = variant .. " " .. petName  -- Shiny, etc.
+        key = variant .. " " .. petName
     end
 
     return discovered[key] or 0
