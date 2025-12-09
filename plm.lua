@@ -461,13 +461,13 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
 
     local petCurrencyLabel, petCurrencyValue = "", ""
     if boostedStats.Tickets then
-        petCurrencyLabel = "<:ticket:1392626567464747028> Tickets"
+        petCurrencyLabel = "<:ticket:1392626567464747028> **Tickets**"
         petCurrencyValue = tostring(boostedStats.Tickets)
     elseif boostedStats.Pearls then
-        petCurrencyLabel = "<:pearls:1403707150513213550> Pearls"
+        petCurrencyLabel = "<:pearls:1403707150513213550> **Pearls**"
         petCurrencyValue = tostring(boostedStats.Pearls)
     elseif boostedStats.Snowflakes then
-        petCurrencyLabel = "<:snowflakes:1446973115765755998> Snowflakes"
+        petCurrencyLabel = "<:snowflakes:1446973115765755998> **Snowflakes**"
         petCurrencyValue = tostring(boostedStats.Snowflakes)
     else
         petCurrencyLabel = "<:coins:1392626598188154977> Coins"
