@@ -8,7 +8,6 @@ local secretBountyUtil = require(rs.Shared.Utils.Stats.SecretBountyUtil)
 local LocalData = require(rs.Client.Framework.Services.LocalData)
 
 local webhookUrl = "https://discord.com/api/webhooks/1391374778882986035/KzVd6EaiXL73gd2YN_FIIHt-d36SeaKONLqsjPGiTDin65p_KrRBLfwr7saQpbXUZCFI"
-local serverLuckWebhookUrl = "https://discord.com/api/webhooks/1391368932761276436/eUsp8pJMsgzC3APxmw_qN64bWZrWyKEUIZraHTLFLUqi7yh0TMvXWEVBl3AnkHjMSfXi"
 local bountyWebhook = "https://discord.com/api/webhooks/1407847455902662768/xWn94IDXW-ExWhJ0JGX5GF9Uefa9vOAzea2qNMJKVMbKq9yXE9ZHiLxFNX_dpft_XB1S"
 
 local localPlayer = Players.LocalPlayer
@@ -624,113 +623,7 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
     end
 end)
 
-local function sendServerLuckEmbed(boostPercent, rawTimeLeft)
-        local function parseTimeStringToSeconds(text)
-                text = text:lower()
-                local d = tonumber(text:match("(%d+)%s*day")) or 0
-                local h, m, s = text:match("(%d+):(%d+):?(%d*)")
-                h = tonumber(h) or 0
-                m = tonumber(m) or 0
-                s = tonumber(s) or 0
-                return d * 86400 + h * 3600 + m * 60 + s
-        end
-
-        local function formatTimeAuto(totalSeconds)
-                local hours = math.floor(totalSeconds / 3600 * 100) / 100
-
-                if totalSeconds >= 86400 then
-                        return string.format("%.0fh", hours) -- afieaz doar ore pentru zile
-                elseif totalSeconds >= 3600 then
-                        return string.format("%.2fh", hours)
-                elseif totalSeconds >= 60 then
-                        local minutes = math.floor(totalSeconds / 60 * 100) / 100
-                        return string.format("%.2fm", minutes)
-                else
-                        return string.format("%ds", totalSeconds)
-                end
-        end
-
-        local converted = formatTimeAuto(parseTimeStringToSeconds(rawTimeLeft))
-        local joinLink = "https://fern.wtf/joiner?placeId=" .. game.PlaceId .. "&gameInstanceId=" .. game.JobId
-        local currentPlayers = #Players:GetPlayers()
-        local maxPlayers = 12
-
-        local description = string.format([[
-🍀・**Luck Status**
-- 🔥 **Boost:** `%s`
-- ⏳ **Time Remaining:** `%s`
-- ⌛ **Hours Left:** `%s`
-- 👥 **Players:** `%d/%d`
-- 🔗 **Join Link:** [Click Here](%s)
-]], boostPercent, rawTimeLeft, converted, currentPlayers, maxPlayers, joinLink)
-
-        local payload = {
-                content = "",
-                embeds = {{
-                        author = {
-                                name = "aerlrobos",
-                                icon_url = "https://cdn.discordapp.com/avatars/1129886888958885928/243a7d079a2b7340cb54f43c1b87bfd9.webp?size=2048"
-                        },
-                        title = "ServerLuck Found!",
-                        description = description,
-                        color = tonumber("2F3136", 16)
-                }}
-        }
-
-        http_request({
-                Url = serverLuckWebhookUrl,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode(payload)
-        })
-end
-
-task.spawn(function()
-        while not luckNotificationSent do
-                local success, result = pcall(function()
-                        local buffs = localPlayer:WaitForChild("PlayerGui"):WaitForChild("ScreenGui"):WaitForChild("Buffs")
-                        local serverLuck = buffs:FindFirstChild("ServerLuck")
-
-                        if serverLuck then
-                                local button = serverLuck:FindFirstChild("Button")
-                                if button then
-                                        local amount = button:FindFirstChild("Amount")
-                                        local label = button:FindFirstChild("Label")
-
-                                        if amount and label and amount:IsA("TextLabel") and label:IsA("TextLabel") then
-                                                local boostText = amount.Text
-                                                local timeLeft = label.Text
-
-                                                -- Ignor text default
-                                                local defaultTimes = { "4:31:05", "0:00:00", "" }
-                                                local isDefault = false
-                                                for _, t in ipairs(defaultTimes) do
-                                                        if timeLeft == t then
-                                                                isDefault = true
-                                                                break
-                                                        end
-                                                end
-
-                                                if boostText:match("%%") and timeLeft:match("%d") and not isDefault then
-                                                        if not luckNotificationSent then
-                                                                luckNotificationSent = true
-                                                                sendServerLuckEmbed(boostText, timeLeft)
-                                                        end
-                                                end
-                                        end
-                                end
-                        end
-                end)
-
-                if not success then
-                        warn("Eroare verificare ServerLuck:", result)
-                end
-
-                task.wait(5)
-        end
-end)
-
-print("✅ Pet notifier & Server Luck activat pentru: " .. localPlayer.Name)
+print("✅ Pet notifier activat pentru: " .. localPlayer.Name)
 
 task.spawn(function()
     local RiftWebhooks = {
