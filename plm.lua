@@ -7,12 +7,16 @@ local eggsModule = require(rs.Shared.Data.Eggs)
 local secretBountyUtil = require(rs.Shared.Utils.Stats.SecretBountyUtil)
 local LocalData = require(rs.Client.Framework.Services.LocalData)
 
-local webhookUrl = "https://discord.com/api/webhooks/1391374778882986035/KzVd6EaiXL73gd2YN_FIIHt-d36SeaKONLqsjPGiTDin65p_KrRBLfwr7saQpbXUZCFI"
+local webhookUrls = {
+    Normal = "https://discord.com/api/webhooks/1449527156207255716/IJGbceZJO9aOysjElj-S4j3U2IadNngvkI7vGYzrVyj6kge7FgyKMtQDyjpgsNfxFUOz",
+    Shiny = "https://discord.com/api/webhooks/1449527161701798010/nwznKPK-qEAV2KrTcZmQwUP5yz-Qg__qPHCdHJaBlGTnWUjzJRHIRrWZsCNjyYa-qhYu",
+    Mythic = "https://discord.com/api/webhooks/1449527163794620578/N4uuBpd3CnKw3m8HBDD4-qeYO0LvqmjNxP5vVVdp7xoZ9RgTvXpoM94MvtBzUAU5No3s",
+    ["Shiny Mythic"] = "https://discord.com/api/webhooks/1449527168693571584/-NkXObqQsgjedD4vRUtc9gMqVpk5Gx0usw1O0Y6MkIe_-Vqq8pL_j4H_MATFCHnYq8lY"
+}
 local bountyWebhook = "https://discord.com/api/webhooks/1407847455902662768/xWn94IDXW-ExWhJ0JGX5GF9Uefa9vOAzea2qNMJKVMbKq9yXE9ZHiLxFNX_dpft_XB1S"
 
 local localPlayer = Players.LocalPlayer
 print("Roblox Name: " .. localPlayer.Name)
-local luckNotificationSent = false
 local failedFile = "FailedWebhooks.json"
 
 local HatchEvent = rs:WaitForChild("Shared")
@@ -220,7 +224,7 @@ local function getPetCount(playerId, petName, variant)
 
     local key
     if variant == "Normal" then
-        key = petName  -- Normal
+        key = petName
     else
         key = variant .. " " .. petName
     end
@@ -432,6 +436,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     }
 
     local embedColor
+    local selectedWebhook = webhookUrls[variant] or webhookUrls.Normal
 
     if rarity == "Infinity" then
         embedColor = colorMap["Infinity"]
@@ -535,7 +540,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     end
 
     enqueueWebhook({
-        webhookUrl = webhookUrl,
+        webhookUrl = selectedWebhook,
         contentText = contentText,
         titleText = titleText,
         description = description,
