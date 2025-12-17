@@ -152,8 +152,8 @@ local function formatChance(chanceStr, variant)
 
     local cleanStr = tostring(chanceStr):gsub("%%", "")
     local num = tonumber(cleanStr)
-    if not num or num <= 0 then 
-        return tostring(chanceStr), math.huge 
+    if not num or num <= 0 then
+        return tostring(chanceStr), math.huge
     end
 
     if variant == "Shiny" then
@@ -182,7 +182,7 @@ local function formatChance(chanceStr, variant)
 
     local percentStr
     if oneIn >= 100_000_001 then
-        percentStr = string.format("%.0e", num) .. "%"
+        percentStr = string.format("%.2e", num) .. "%"
     else
         percentStr = string.format("%.10f", num):gsub("0+$", ""):gsub("%.$", "") .. "%"
     end
