@@ -148,7 +148,9 @@ local function abbreviateNumber(num)
 end
 
 local function formatChance(chanceStr, variant)
-    if not chanceStr then return "Unknown", math.huge end
+    if not chanceStr then
+        return "Unknown", math.huge
+    end
 
     local cleanStr = tostring(chanceStr):gsub("%%", "")
     local num = tonumber(cleanStr)
@@ -182,9 +184,16 @@ local function formatChance(chanceStr, variant)
 
     local percentStr
     if oneIn >= 100_000_001 then
-        percentStr = string.format("%.2e", num) .. "%"
+        local sci = string.format("%.10e", num)
+        sci = sci
+            :gsub("(%.%d-)0+e", "%1e")
+            :gsub("%.e", "e")
+
+        percentStr = sci .. "%"
     else
-        percentStr = string.format("%.10f", num):gsub("0+$", ""):gsub("%.$", "") .. "%"
+        percentStr = string.format("%.10f", num)
+            :gsub("0+$", "")
+            :gsub("%.$", "") .. "%"
     end
 
     return string.format("%s (1 in %s)", percentStr, approxNumber(oneIn)), oneIn
