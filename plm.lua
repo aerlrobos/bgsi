@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local petsModule = require(rs.Shared.Data.Pets)
 local eggsModule = require(rs.Shared.Data.Eggs)
 local secretBountyUtil = require(rs.Shared.Utils.Stats.SecretBountyUtil)
+local PetUtil = require(rs.Shared.Utils.Stats.PetUtil)
 local LocalData = require(rs.Client.Framework.Services.LocalData)
 
 local webhookUrls = {
@@ -27,7 +28,7 @@ local HatchEvent = rs:WaitForChild("Shared")
 
 local chestRemote = rs.Shared.Framework.Network.Remote.RemoteEvent
 local startTime = tick()
-local coins, gems, tickets, pearls, snowflakes, totalHatches = 0, 0, 0, 0, 0
+local coins, gems, tickets, pearls, circustickets, gametickets, totalHatches = 0, 0, 0, 0, 0, 0, 0
 
 local function updateCurrencies()
     local data = LocalData:Get()
@@ -37,7 +38,8 @@ local function updateCurrencies()
     gems = data.Gems or (data.Stats and data.Stats.Gems) or gems
     tickets = data.Tickets or (data.Stats and data.Stats.Tickets) or tickets
     pearls = data.Pearls or (data.Stats and data.Stats.Pearls) or pearls
-    snowflakes = data.Snowflakes or (data.Stats and data.Stats.Snowflakes) or snowflakes
+    circustickets = data.CircusTickets or (data.Stats and data.Stats.CircusTickets) or circustickets
+    gametickets = data.GameTickets or (data.Stats and data.Stats.GameTickets) or gametickets
     totalHatches = data.Stats and data.Stats.Hatches or totalHatches
 end
 
@@ -433,7 +435,7 @@ task.spawn(function()
     end
 end)
 
-function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier)
+function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier, isXL)
     local colorMap = {
         ["Normal"] = 65280,
         ["Shiny"] = 0xFFD700,
@@ -468,25 +470,36 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
             embedColor = colorMap["Normal"]
         end
     end
-
-    local displayPetName = (variant ~= "Normal" and variant.." " or "")..petName
+    
+    local currencyMap = {
+        Coins = "<:coins:1392626598188154977> **Coins**",
+        Gems = "<:gems:1392626582929277050> **Gems**",
+        Tickets = "<:ticket:1392626567464747028> **Tickets**",
+        Pearls = "<:pearls:1403707150513213550> **Pearls**",
+        Snowflakes = "<:snowflakes:1446973115765755998> **Snowflakes**",
+        CircusTickets = "<:circustickets:1459609576570618121> **Circus Tickets**",
+        GameTickets = "<:gametickets:1459609590747369482> **Game Tickets**"
+    }
+    
+    local displayPetName =
+        (isXL and "XL " or "") ..
+        (variant ~= "Normal" and variant.." " or "") ..
+        petName
     local petImageLink = getPetImageLink(petName, variant)
     local hatchCount = abbreviateNumber(totalHatches)
 
-    local petCurrencyLabel, petCurrencyValue = "", ""
-    if boostedStats.Tickets then
-        petCurrencyLabel = "<:ticket:1392626567464747028> **Tickets**"
-        petCurrencyValue = tostring(boostedStats.Tickets)
-    elseif boostedStats.Pearls then
-        petCurrencyLabel = "<:pearls:1403707150513213550> **Pearls**"
-        petCurrencyValue = tostring(boostedStats.Pearls)
-    elseif boostedStats.Snowflakes then
-        petCurrencyLabel = "<:snowflakes:1446973115765755998> **Snowflakes**"
-        petCurrencyValue = tostring(boostedStats.Snowflakes)
-    else
-        petCurrencyLabel = "<:coins:1392626598188154977> Coins"
-        petCurrencyValue = tostring(boostedStats.Coins or "N/A")
+    local petCurrencies = {}
+
+    for currency, label in pairs(currencyMap) do
+        if boostedStats[currency] then
+            table.insert(
+                petCurrencies,
+                string.format("- %s: `%s`", label, tostring(boostedStats[currency]))
+            )
+        end
     end
+
+    local petCurrencyText = #petCurrencies > 0 and table.concat(petCurrencies, "\n") or "- N/A"
 
     local userCoins = abbreviateNumber(coins)
     local userGems = abbreviateNumber(gems)
@@ -502,8 +515,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
 
 ✨・**Pet Stats**
 - <:bubbles:1392626533826433144> **Bubbles:** `%s`
-- <:gems:1392626582929277050> **Gems:** `%s`
-- %s: `%s`
+%s
 
 👤・**User Info**
 - 🕒 **Playtime:** `%s`
@@ -518,9 +530,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
         rarity or "Legendary",
         tostring(tier or "1"),
         boostedStats.Bubbles or "N/A",
-        boostedStats.Gems or "N/A",
-        petCurrencyLabel,
-        petCurrencyValue,
+        petCurrencyText,
         formatPlaytime(),
         hatchCount,
         userCoins,
@@ -532,17 +542,27 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     local petCount = getPetCount(playerName, petName, variant) + 1
     local ordinalCount = toOrdinal(petCount)
     local variantPrefix = (variant ~= "Normal" and variant:upper().." " or "NORMAL ")
+    local xlPrefix = isXL and "XL " or ""
+    local contentRarity = rarity:upper()
     local specialMessage = string.format("THIS IS YOUR %s %s PET!", ordinalCount, variant:upper())
 
     local titleText, contentText = "", ""
-    local contentRarity = rarity:upper()
 
     if rarity == "Infinity" then
-        titleText = string.format("DAMN! ||%s|| hatched a %s! Unbelievable!", playerName, displayPetName)
-        contentText = "@everyone "..variantPrefix..contentRarity.."! "..specialMessage
+        titleText = string.format(
+            "DAMN! ||%s|| hatched a %s! Unbelievable!",
+            playerName,
+            displayPetName
+        )
+        contentText = "@everyone "..variantPrefix..xlPrefix..contentRarity.."! "..specialMessage
+
     elseif rarity == "Secret" or rarity == "Secret Bounty" then
-        titleText = string.format("WOW! ||%s|| hatched a %s! Lucky Guy!", playerName, displayPetName)
-        contentText = "@everyone "..variantPrefix..contentRarity.."! "..specialMessage
+        titleText = string.format(
+            "WOW! ||%s|| hatched a %s! Lucky Guy!",
+            playerName,
+            displayPetName
+        )
+        contentText = "@everyone "..variantPrefix..xlPrefix..contentRarity.."! "..specialMessage
     else
         titleText = string.format("||%s|| hatched a %s", playerName, displayPetName)
         contentText = specialMessage
@@ -576,11 +596,25 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
         elseif pet.Mythic then
             variant = "Mythic"
         end
+        
+        local isXL = pet.XL == true
 
         local petEntry = petsModule[petName]
         if not petEntry then continue end
 
-        local boostedStats = getBoostedStats(petEntry.Stats, variant)
+        local boostedStats
+        if isXL then
+            boostedStats = PetUtil:GetStats({
+                Name = petName,
+                Rarity = petEntry.Rarity,
+                Stats = petEntry.Stats,
+                Shiny = pet.Shiny,
+                Mythic = pet.Mythic,
+                XL = true
+            })
+        else
+            boostedStats = getBoostedStats(petEntry.Stats, variant)
+        end
 
         local eggName
         if action == "ExclusiveHatch" then
@@ -608,7 +642,17 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
             rawChance = petEntry.Chance or "Unknown"
         end
 
-        local dropChance = formatChance(rawChance, variant)
+        local dropChance, oneIn
+        if isXL then
+            dropChance = PetUtil:GetChance({
+                Name = petName,
+                Shiny = pet.Shiny,
+                Mythic = pet.Mythic,
+                XL = true
+            }) .. "%"
+        else
+            dropChance, oneIn = formatChance(rawChance, variant)
+        end
 
         local shouldSend = false
 
@@ -631,7 +675,8 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
                 dropChance,
                 eggName,
                 rarity,
-                tier
+                tier,
+                isXL
             )
         end
     end
