@@ -136,14 +136,18 @@ local function abbreviateNumber(num)
     num = tonumber(num) or 0
     local absNum = math.abs(num)
 
-    if absNum >= 1e12 then
-        return string.format("%.1fT", num / 1e12)
+    if absNum >= 1e18 then
+        return string.format("%.2fQn", num / 1e18)
+    elseif absNum >= 1e15 then
+        return string.format("%.2fQd", num / 1e15)
+    elseif absNum >= 1e12 then
+        return string.format("%.2fT", num / 1e12)
     elseif absNum >= 1e9 then
-        return string.format("%.1fB", num / 1e9)
+        return string.format("%.2fB", num / 1e9)
     elseif absNum >= 1e6 then
-        return string.format("%.1fM", num / 1e6)
+        return string.format("%.2fM", num / 1e6)
     elseif absNum >= 1e3 then
-        return string.format("%.1fK", num / 1e3)
+        return string.format("%.2fK", num / 1e3)
     else
         return tostring(num)
     end
@@ -171,7 +175,11 @@ local function formatChance(chanceStr, variant)
     local oneIn = 100 / num
 
     local function approxNumber(n)
-        if n >= 1e12 then
+        if n >= 1e18 then
+            return string.format("%.2fQn", n / 1e18)
+        elseif n >= 1e15 then
+            return string.format("%.2fQd", n / 1e15)
+        elseif n >= 1e12 then
             return string.format("%.2fT", n / 1e12)
         elseif n >= 1e9 then
             return string.format("%.2fB", n / 1e9)
@@ -642,16 +650,17 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
             rawChance = petEntry.Chance or "Unknown"
         end
 
-        local dropChance, oneIn
-        if isXL then
-            dropChance = PetUtil:GetChance({
-                Name = petName,
-                Shiny = pet.Shiny,
-                Mythic = pet.Mythic,
-                XL = true
-            }) .. "%"
+        local dropChance, oneIn    
+        if isXL then    
+            local realChance = PetUtil:GetChance({    
+                Name = petName,    
+                Shiny = pet.Shiny,    
+                Mythic = pet.Mythic,    
+                XL = true    
+            })    
+            dropChance, oneIn = formatChance(realChance, variant)    
         else
-            dropChance, oneIn = formatChance(rawChance, variant)
+            dropChance, oneIn = formatChance(rawChance, variant)    
         end
 
         local shouldSend = false
