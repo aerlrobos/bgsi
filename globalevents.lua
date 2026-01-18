@@ -47,7 +47,7 @@ local EVENTS = {
     },
     Hatching = {
         color = 0xfff2f0,
-        title = ":hatch: **Hatch Speed Event Started!** :hatch:",
+        title = "<:hatch:1462382627196637288> **Hatch Speed Event Started!** <:hatch:1462382627196637288>",
         description = "**Hatch Speed Event** has been activated for a limited amount of time!\nPlease wait until it is rolled out in all servers.",
         thumbnail = "https://cdn.discordapp.com/emojis/1455654577482502317.png?v=1&size=48&quality=lossless"
     },
