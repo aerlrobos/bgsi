@@ -6,6 +6,14 @@ local HttpService = game:GetService("HttpService")
 local GlobalEvent = require(ReplicatedStorage.Shared.GlobalEvent)
 local Time = require(ReplicatedStorage.Shared.Framework.Utilities.Math.Time)
 
+local G = getgenv()
+G.EventScanner = G.EventScanner or {
+    sentEvents = {},
+    cooldownUntil = 0
+}
+
+local sentEvents = G.EventScanner.sentEvents
+
 local EVENTS = {
     XL = {
         color = 0xfc1576,
@@ -57,9 +65,6 @@ local EVENTS = {
     }
 }
 
-local sentEvents = {}
-local cooldownActive = false
-
 local function sendWebhook(embed)
     pcall(function()
         http_request({
@@ -83,71 +88,71 @@ end
 
 local function checkEvents()
     local active = GlobalEvent:GetActive()
-    local currentActiveSet = {}
-    local newEventsSent = false
+    local currentActive = {}
     local minRemaining = math.huge
+    local sentSomething = false
 
-    for _, eventName in ipairs(active) do
-        currentActiveSet[eventName] = true
+    for _, name in ipairs(active) do
+        currentActive[name] = true
     end
 
-    if not cooldownActive then
+    if Time.now() < G.EventScanner.cooldownUntil then
+        print("Cooldown activ până la:", formatTime(G.EventScanner.cooldownUntil - Time.now()))
+    else
         for _, eventName in ipairs(active) do
+            local remaining = GlobalEvent:GetRemainingTime(eventName)
+            if remaining then
+                print("Event Activ:", eventName, "Expiră în:", formatTime(remaining))
+                if remaining < minRemaining then
+                    minRemaining = remaining
+                end
+            end
+
             if not sentEvents[eventName] then
                 local data = EVENTS[eventName]
-                if data then
-                    local remaining = GlobalEvent:GetRemainingTime(eventName)
-                    if remaining then
-                        local endsAt = math.floor(Time.now() + remaining)
-                        local startedAt = endsAt - math.floor(remaining)
+                if data and remaining then
+                    local endsAt = math.floor(Time.now() + remaining)
+                    local startedAt = endsAt - math.floor(remaining)
 
-                        print("New Event Added:", eventName, "Duration remaining:", formatTime(remaining))
+                    print("Event Nou Detectat:", eventName, "Durată:", formatTime(remaining))
 
-                        local embed = {
-                            title = data.title,
-                            description = data.description,
-                            color = data.color,
-                            thumbnail = { url = data.thumbnail },
-                            fields = {
-                                { name = "**Started:**", value = "<t:" .. startedAt .. ":R>", inline = true },
-                                { name = "**Ends:**", value = "<t:" .. endsAt .. ":R>", inline = true }
-                            },
-                            footer = { text = "OTC・discord.gg/otc | Event Scanner" },
-                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                        }
+                    local embed = {
+                        title = data.title,
+                        description = data.description,
+                        color = data.color,
+                        thumbnail = { url = data.thumbnail },
+                        fields = {
+                            { name = "**Started:**", value = "<t:" .. startedAt .. ":R>", inline = true },
+                            { name = "**Ends:**", value = "<t:" .. endsAt .. ":R>", inline = true }
+                        },
+                        footer = { text = "OTC・discord.gg/otc | Event Scanner" },
+                        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                    }
 
-                        sendWebhook(embed)
-                        sentEvents[eventName] = true
-                        task.wait(0.3)
-                        newEventsSent = true
-                        if remaining < minRemaining then
-                            minRemaining = remaining
-                        end
-                    end
-                end
-            else
-                local remaining = GlobalEvent:GetRemainingTime(eventName)
-                if remaining then
-                    print("Event Active:", eventName, "Time remaining:", formatTime(remaining))
-                    if remaining < minRemaining then
-                        minRemaining = remaining
-                    end
+                    sendWebhook(embed)
+                    sentEvents[eventName] = true
+                    sentSomething = true
+                    task.wait(0.3)
                 end
             end
         end
 
-        if newEventsSent then
-            cooldownActive = true
-            print("Webhook trimise pentru toate event-urile active. Cooldown activ pentru următoarele", formatTime(minRemaining))
+        if sentSomething and minRemaining < math.huge then
+            G.EventScanner.cooldownUntil = Time.now() + minRemaining
+            print("Toate event-urile trimise. Cooldown până la expirare:", formatTime(minRemaining))
         end
     end
 
-    for eventName,_ in pairs(sentEvents) do
-        if not currentActiveSet[eventName] then
-            print("Event Expired:", eventName)
-            sentEvents[eventName] = nil
-            cooldownActive = false
+    for name in pairs(sentEvents) do
+        if not currentActive[name] then
+            print("Event Expirat:", name)
+            sentEvents[name] = nil
         end
+    end
+
+    if next(sentEvents) == nil then
+        G.EventScanner.cooldownUntil = 0
+        print("Nu mai există event-uri active. Cooldown resetat.")
     end
 end
 
