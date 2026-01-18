@@ -88,71 +88,68 @@ end
 
 local function checkEvents()
     local active = GlobalEvent:GetActive()
-    local currentActive = {}
+    local activeNow = {}
     local minRemaining = math.huge
     local sentSomething = false
 
-    for _, name in ipairs(active) do
-        currentActive[name] = true
+    for _, e in ipairs(active) do
+        activeNow[e] = true
     end
 
     if Time.now() < G.EventScanner.cooldownUntil then
-        print("Cooldown activ până la:", formatTime(G.EventScanner.cooldownUntil - Time.now()))
+        print("Cooldown activ încă:", formatTime(G.EventScanner.cooldownUntil - Time.now()))
     else
         for _, eventName in ipairs(active) do
             local remaining = GlobalEvent:GetRemainingTime(eventName)
             if remaining then
-                print("Event Activ:", eventName, "Expiră în:", formatTime(remaining))
-                if remaining < minRemaining then
-                    minRemaining = remaining
-                end
+                print("Event activ:", eventName, "expiră în", formatTime(remaining))
+                minRemaining = math.min(minRemaining, remaining)
             end
 
-            if not sentEvents[eventName] then
+            if not sentEvents[eventName] and remaining then
                 local data = EVENTS[eventName]
-                if data and remaining then
+                if data then
                     local endsAt = math.floor(Time.now() + remaining)
                     local startedAt = endsAt - math.floor(remaining)
 
-                    print("Event Nou Detectat:", eventName, "Durată:", formatTime(remaining))
+                    print("Event NOU:", eventName, "durată", formatTime(remaining))
 
-                    local embed = {
+                    sendWebhook({
                         title = data.title,
                         description = data.description,
                         color = data.color,
                         thumbnail = { url = data.thumbnail },
                         fields = {
-                            { name = "**Started:**", value = "<t:" .. startedAt .. ":R>", inline = true },
-                            { name = "**Ends:**", value = "<t:" .. endsAt .. ":R>", inline = true }
+                            { name = "**Started:**", value = "<t:"..startedAt..":R>", inline = true },
+                            { name = "**Ends:**", value = "<t:"..endsAt..":R>", inline = true }
                         },
                         footer = { text = "OTC・discord.gg/otc | Event Scanner" },
                         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                    }
+                    })
 
-                    sendWebhook(embed)
                     sentEvents[eventName] = true
                     sentSomething = true
-                    task.wait(0.3)
+                    task.wait(0.35)
                 end
             end
         end
 
         if sentSomething and minRemaining < math.huge then
             G.EventScanner.cooldownUntil = Time.now() + minRemaining
-            print("Toate event-urile trimise. Cooldown până la expirare:", formatTime(minRemaining))
+            print("Cooldown set până la expirarea event-urilor:", formatTime(minRemaining))
         end
     end
 
     for name in pairs(sentEvents) do
-        if not currentActive[name] then
-            print("Event Expirat:", name)
+        if not activeNow[name] then
+            print("Event expirat:", name)
             sentEvents[name] = nil
         end
     end
 
     if next(sentEvents) == nil then
         G.EventScanner.cooldownUntil = 0
-        print("Nu mai există event-uri active. Cooldown resetat.")
+        print("Toate event-urile au expirat, cooldown resetat")
     end
 end
 
