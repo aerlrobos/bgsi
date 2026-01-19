@@ -1,18 +1,11 @@
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1447658603149393950/AH90w2ScZmpQbO0LzAosT1AgXd1LlglNUqMppjAkNMNBTVimk3HrcUSXEaOk4FCrAtCT"
+local SAVE_FILE = "events.txt"
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local GlobalEvent = require(ReplicatedStorage.Shared.GlobalEvent)
 local Time = require(ReplicatedStorage.Shared.Framework.Utilities.Math.Time)
-
-local G = getgenv()
-G.EventScanner = G.EventScanner or {
-    sentEvents = {},
-    cooldownUntil = 0
-}
-
-local sentEvents = G.EventScanner.sentEvents
 
 local EVENTS = {
     XL = {
@@ -65,98 +58,80 @@ local EVENTS = {
     }
 }
 
-local function sendWebhook(embed)
-    pcall(function()
-        http_request({
-            Url = WEBHOOK_URL,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = HttpService:JSONEncode({
-                content = "<@&1462412213292634196>",
-                embeds = { embed }
-            })
-        })
-    end)
+local function makeWaveHash(events)
+    table.sort(events)
+    return table.concat(events, "|")
 end
 
-local function formatTime(seconds)
-    local h = math.floor(seconds / 3600)
-    local m = math.floor((seconds % 3600) / 60)
-    local s = seconds % 60
-    return string.format("%02d:%02d:%02d", h, m, s)
+local function loadLastWave()
+    if isfile(SAVE_FILE) then
+        return readfile(SAVE_FILE)
+    end
+end
+
+local function saveWave(hash)
+    writefile(SAVE_FILE, hash)
+end
+
+local function sendEmbed(name, remaining)
+    local data = EVENTS[name]
+    if not data then return end
+
+    local endsAt = math.floor(Time.now() + remaining)
+    local startedAt = endsAt - math.floor(remaining)
+
+    http_request({
+        Url = WEBHOOK_URL,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode({
+            content = "<@&1462412213292634196>",
+            embeds = {{
+                title = data.title,
+                description = data.description,
+                color = data.color,
+                thumbnail = { url = data.thumbnail },
+                fields = {
+                    { name = "**Started:**", value = "<t:" .. startedAt .. ":R>", inline = true },
+                    { name = "**Ends:**", value = "<t:" .. endsAt .. ":R>", inline = true }
+                },
+                footer = { text = "OTC・discord.gg/otc | Event Scanner" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        })
+    })
 end
 
 local function checkEvents()
     local active = GlobalEvent:GetActive()
-    local activeNow = {}
-    local minRemaining = math.huge
-    local sentSomething = false
-
-    for _, e in ipairs(active) do
-        activeNow[e] = true
+    if #active == 0 then
+        print("Nu sunt event-uri active")
+        return
     end
 
-    if Time.now() < G.EventScanner.cooldownUntil then
-        print("Cooldown activ încă:", formatTime(G.EventScanner.cooldownUntil - Time.now()))
-    else
-        for _, eventName in ipairs(active) do
-            local remaining = GlobalEvent:GetRemainingTime(eventName)
-            if remaining then
-                print("Event activ:", eventName, "expiră în", formatTime(remaining))
-                minRemaining = math.min(minRemaining, remaining)
-            end
+    local currentHash = makeWaveHash(active)
+    local savedHash = loadLastWave()
 
-            if not sentEvents[eventName] and remaining then
-                local data = EVENTS[eventName]
-                if data then
-                    local endsAt = math.floor(Time.now() + remaining)
-                    local startedAt = endsAt - math.floor(remaining)
+    if currentHash == savedHash then
+        print("Wave deja notificat (persistat):", currentHash)
+        return
+    end
 
-                    print("Event NOU:", eventName, "durată", formatTime(remaining))
+    print("Wave nou:", currentHash)
 
-                    sendWebhook({
-                        title = data.title,
-                        description = data.description,
-                        color = data.color,
-                        thumbnail = { url = data.thumbnail },
-                        fields = {
-                            { name = "**Started:**", value = "<t:"..startedAt..":R>", inline = true },
-                            { name = "**Ends:**", value = "<t:"..endsAt..":R>", inline = true }
-                        },
-                        footer = { text = "OTC・discord.gg/otc | Event Scanner" },
-                        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                    })
-
-                    sentEvents[eventName] = true
-                    sentSomething = true
-                    task.wait(0.35)
-                end
-            end
-        end
-
-        if sentSomething and minRemaining < math.huge then
-            G.EventScanner.cooldownUntil = Time.now() + minRemaining
-            print("Cooldown set până la expirarea event-urilor:", formatTime(minRemaining))
+    for _, name in ipairs(active) do
+        local remaining = GlobalEvent:GetRemainingTime(name)
+        if remaining then
+            sendEmbed(name, remaining)
+            task.wait(0.4)
         end
     end
 
-    for name in pairs(sentEvents) do
-        if not activeNow[name] then
-            print("Event expirat:", name)
-            sentEvents[name] = nil
-        end
-    end
-
-    if next(sentEvents) == nil then
-        G.EventScanner.cooldownUntil = 0
-        print("Toate event-urile au expirat, cooldown resetat")
-    end
+    saveWave(currentHash)
+    print("Wave salvat pe disk. Nu se mai retrimite.")
 end
 
-Players.PlayerAdded:Connect(function() task.defer(checkEvents) end)
-Players.PlayerRemoving:Connect(function() task.defer(checkEvents) end)
-
-GlobalEvent.Began:Connect(function() task.defer(checkEvents) end)
-GlobalEvent.Ended:Connect(function() task.defer(checkEvents) end)
+GlobalEvent.Began:Connect(checkEvents)
+GlobalEvent.Ended:Connect(checkEvents)
 
 task.defer(checkEvents)
