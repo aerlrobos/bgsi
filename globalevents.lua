@@ -58,6 +58,9 @@ local EVENTS = {
     }
 }
 
+local LOCK = false
+local DEBOUNCE_TIME = 0.5
+
 local function makeWaveHash(events)
     table.sort(events)
     return table.concat(events, "|")
@@ -103,32 +106,39 @@ local function sendEmbed(name, remaining)
 end
 
 local function checkEvents()
-    local active = GlobalEvent:GetActive()
-    if #active == 0 then
-        print("Nu sunt event-uri active")
-        return
-    end
+    if LOCK then return end
+    LOCK = true
 
-    local currentHash = makeWaveHash(active)
-    local savedHash = loadLastWave()
-
-    if currentHash == savedHash then
-        print("Wave deja notificat (persistat):", currentHash)
-        return
-    end
-
-    print("Wave nou:", currentHash)
-
-    for _, name in ipairs(active) do
-        local remaining = GlobalEvent:GetRemainingTime(name)
-        if remaining then
-            sendEmbed(name, remaining)
-            task.wait(0.4)
+    task.delay(DEBOUNCE_TIME, function()
+        local active = GlobalEvent:GetActive()
+        if #active == 0 then
+            LOCK = false
+            return
         end
-    end
 
-    saveWave(currentHash)
-    print("Wave salvat pe disk. Nu se mai retrimite.")
+        local currentHash = makeWaveHash(active)
+        local savedHash = loadLastWave()
+
+        if currentHash == savedHash then
+            print("Wave deja notificat:", currentHash)
+            LOCK = false
+            return
+        end
+
+        print("Wave nou:", currentHash)
+
+        for _, name in ipairs(active) do
+            local remaining = GlobalEvent:GetRemainingTime(name)
+            if remaining then
+                sendEmbed(name, remaining)
+                task.wait(0.4)
+            end
+        end
+
+        saveWave(currentHash)
+        print("Wave salvat. Notificare trimisă o singură dată.")
+        LOCK = false
+    end)
 end
 
 GlobalEvent.Began:Connect(checkEvents)
