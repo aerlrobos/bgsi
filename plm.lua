@@ -662,13 +662,13 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
 
         local dropChance, oneIn    
         if isXL then    
-            local realChance = PetUtil:GetChance({    
+            local xlChance = PetUtil:GetChance({    
                 Name = petName,    
-                Shiny = pet.Shiny,    
-                Mythic = pet.Mythic,    
+                Shiny = false,    
+                Mythic = false,    
                 XL = true    
             })    
-            dropChance, oneIn = formatChance(realChance, variant)    
+            dropChance, oneIn = formatChance(xlChance, variant)    
         else
             dropChance, oneIn = formatChance(rawChance, variant)    
         end
