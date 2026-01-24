@@ -443,7 +443,7 @@ task.spawn(function()
     end
 end)
 
-function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier, isXL)
+function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChance, egg, rarity, tier, isXL, isInfinity)
     local colorMap = {
         ["Normal"] = 65280,
         ["Shiny"] = 0xFFD700,
@@ -457,8 +457,16 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     local embedColor
     local selectedWebhook = webhookUrls[variant] or webhookUrls.Normal
 
-    if rarity == "Infinity" then
-        embedColor = colorMap["Infinity"]
+    if isInfinity then
+        if variant == "Shiny" then
+            embedColor = colorMap["Shiny"]
+        elseif variant == "Mythic" then
+            embedColor = colorMap["Mythic"]
+        elseif variant == "Shiny Mythic" then
+            embedColor = colorMap["Shiny Mythic"]
+        else
+            embedColor = colorMap["Infinity"]
+        end
 
     elseif rarity == "Secret" or rarity == "Secret Bounty" then
         if variant == "Shiny" then
@@ -535,9 +543,9 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     ]],
         egg or "Unknown",
         dropChance,
-        rarity or "Legendary",
-        tostring(tier or "1"),
-        boostedStats.Bubbles or "N/A",
+        isInfinity and "Infinity" or rarity or "Legendary",
+        tostring(tier or "None"),
+        boostedStats.Bubbles or "None",
         petCurrencyText,
         formatPlaytime(),
         hatchCount,
@@ -556,7 +564,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
 
     local titleText, contentText = "", ""
 
-    if rarity == "Infinity" then
+    if isInfinity then
         titleText = string.format(
             "DAMN! ||%s|| hatched a %s! Unbelievable!",
             playerName,
@@ -609,6 +617,8 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
 
         local petEntry = petsModule[petName]
         if not petEntry then continue end
+        
+        local isInfinity = petEntry.Infinity == true
 
         local boostedStats
         if isXL then
@@ -665,7 +675,7 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
 
         local shouldSend = false
 
-        if rarity == "Infinity" then
+        if isInfinity then
             shouldSend = true
         elseif rarity == "Secret" or rarity == "Secret Bounty" then
             shouldSend = true
@@ -685,7 +695,8 @@ HatchEvent.OnClientEvent:Connect(function(action, data)
                 eggName,
                 rarity,
                 tier,
-                isXL
+                isXL,
+                isInfinity
             )
         end
     end
