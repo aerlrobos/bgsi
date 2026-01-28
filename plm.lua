@@ -559,7 +559,7 @@ function sendDiscordWebhook(playerName, petName, variant, boostedStats, dropChan
     local ordinalCount = toOrdinal(petCount)
     local variantPrefix = (variant ~= "Normal" and variant:upper().." " or "NORMAL ")
     local xlPrefix = isXL and "XL " or ""
-    local contentRarity = rarity:upper()
+    local contentRarity = isInfinity and "Infinity" or (rarity or "Unknown"):upper()
     local specialMessage = string.format("THIS IS YOUR %s %s PET!", ordinalCount, variant:upper())
 
     local titleText, contentText = "", ""
