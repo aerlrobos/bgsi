@@ -66,9 +66,7 @@ mt.__namecall = newcclosure(function(self, ...)
                     if type(petData) == "table" then
                         local petName = petData[1]
                         local variant = petData[2]
-                        local chance = petData[3]
-
-                        print("[PET]", petName, variant, chance)
+                        local chance = petData[3]                       
 
                         if getgenv().sendWebhook then
                             getgenv().sendWebhook(petName, variant, chance)
