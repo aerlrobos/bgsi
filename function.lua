@@ -56,20 +56,29 @@ mt.__namecall = newcclosure(function(self, ...)
     and typeof(self) == "Instance"
     and self == OpenEgg then
 
-        print("[HOOK] OpenEgg invoked")
-
+        -- Apelez funcția originală
         local results = {oldNamecall(self, ...)}
 
+        -- Trimite webhook fără duplicate
         task.spawn(function()
             if results[2] and type(results[2]) == "table" then
                 for _, petData in pairs(results[2]) do
                     if type(petData) == "table" then
                         local petName = petData[1]
                         local variant = petData[2]
-                        local chance = petData[3]                       
+                        local chance = petData[3]
 
-                        if getgenv().sendWebhook then
-                            getgenv().sendWebhook(petName, variant, chance)
+                        -- Creează un key unic pentru fiecare pet hatch
+                        local key = tostring(petName)..tostring(variant)..tostring(chance)
+                        getgenv()._lastHatch = getgenv()._lastHatch or {}
+
+                        -- Dacă a fost trimis recent (<0.5s), ignoră
+                        if not getgenv()._lastHatch[key] or tick() - getgenv()._lastHatch[key] >= 0.5 then
+                            getgenv()._lastHatch[key] = tick()
+
+                            if getgenv().sendWebhook then
+                                getgenv().sendWebhook(petName, variant, chance)
+                            end
                         end
                     end
                 end
