@@ -46,51 +46,36 @@ print("[HOOK] OpenEgg found.")
 -- SAFE NAMECALL HOOK
 -- =========================
 
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
-
-mt.__namecall = newcclosure(function(self, ...)
-
-    if getnamecallmethod() == "InvokeServer"
-    and typeof(self) == "Instance"
-    and self == OpenEgg then
-
-        -- Apelez funcția originală
-        local results = {oldNamecall(self, ...)}
-
-        -- Trimite webhook fără duplicate
-        task.spawn(function()
-            if results[2] and type(results[2]) == "table" then
-                for _, petData in pairs(results[2]) do
-                    if type(petData) == "table" then
-                        local petName = petData[1]
-                        local variant = petData[2]
-                        local chance = petData[3]
-
-                        -- Creează un key unic pentru fiecare pet hatch
-                        local key = tostring(petName)..tostring(variant)..tostring(chance)
-                        getgenv()._lastHatch = getgenv()._lastHatch or {}
-
-                        -- Dacă a fost trimis recent (<0.5s), ignoră
-                        if not getgenv()._lastHatch[key] or tick() - getgenv()._lastHatch[key] >= 0.5 then
-                            getgenv()._lastHatch[key] = tick()
-
-                            if getgenv().sendWebhook then
-                                getgenv().sendWebhook(petName, variant, chance)
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-
-        return unpack(results)
-    end
-
-    return oldNamecall(self, ...)
-end)
-
-setreadonly(mt, true)
+local mt = getrawmetatable(game)    
+local oldNamecall = mt.__namecall    
+setreadonly(mt, false)    
+    
+mt.__namecall = newcclosure(function(...)    
+    local self = ...    
+    local method = getnamecallmethod()    
+    
+    if method == "InvokeServer" and tostring(self.Name) == "OpenEgg" then    
+            
+        local results = {oldNamecall(...)}    
+    
+        task.spawn(function()    
+            if results[2] and type(results[2]) == "table" then    
+                for _, petData in pairs(results[2]) do    
+                    if type(petData) == "table" then    
+                        local petName = petData[1]    
+                        local variant = petData[2]    
+                        local chance = petData[3]    
+    
+                        getgenv().sendWebhook(petName, variant, chance)    
+                    end    
+                end    
+            end    
+        end)    
+    
+        return unpack(results)    
+    end    
+    
+    return oldNamecall(...)    
+end)    
 
 print("[HOOK] Successfully hooked OpenEgg")
