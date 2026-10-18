@@ -4321,7 +4321,7 @@ function TeleportToDailyShop()
     return true
 end
 
-local function GetOffers()
+function GetOffers()
     local DailyShop = GetDailyShop()
     local Now = math.floor(workspace:GetServerTimeNow())
     local Day = DailyShop.Day(Now)
