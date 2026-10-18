@@ -4182,7 +4182,7 @@ task.spawn(function()
     end
 end)
 
-(function()
+;(function()
     local CurrentCapacity = 2500
 local SliderObject
 local AutoSellTriggered = false
