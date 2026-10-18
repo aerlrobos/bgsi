@@ -3822,6 +3822,9 @@ task.spawn(function()
     end
 end)
 
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+
 local CurrentCapacity = 2500
 local SliderObject
 local AutoSellTriggered = false
@@ -3843,18 +3846,10 @@ local function GetSellPad()
     return SellCircle
 end
 
-local function TeleportToSell()
+local function TweenToSell()
     local SellCircle = GetSellPad()
 
     if not SellCircle then
-        return false
-    end
-
-    local Character = game:GetService("Players").LocalPlayer.Character
-    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
-
-    if not Root then
-        warn("[OTC AutoSell] HumanoidRootPart not found")
         return false
     end
 
@@ -3863,15 +3858,68 @@ local function TeleportToSell()
         return false
     end
 
-    Root.CFrame = SellCircle:GetPivot() * CFrame.new(0, 3, 0)
+    local Player = Players.LocalPlayer
+    local Character = Player.Character
+        or Player.CharacterAdded:Wait()
 
-    print("[OTC AutoSell] Teleported to SellStand.Circle.Circle")
+    local Root = Character:FindFirstChild("HumanoidRootPart")
+        or Character:WaitForChild("HumanoidRootPart", 5)
+
+    if not Root then
+        warn("[OTC AutoSell] HumanoidRootPart not found")
+        return false
+    end
+
+    local TargetCFrame = SellCircle:GetPivot() * CFrame.new(0, 3, 0)
+    local Distance = (Root.Position - TargetCFrame.Position).Magnitude
+    local Duration = math.clamp(Distance / 100, 0.15, 2)
+
+    local Tween = TweenService:Create(
+        Root,
+        TweenInfo.new(
+            Duration,
+            Enum.EasingStyle.Linear,
+            Enum.EasingDirection.Out
+        ),
+        {
+            CFrame = TargetCFrame
+        }
+    )
+
+    local Finished = false
+    local Connection
+
+    Connection = Tween.Completed:Connect(function()
+        Finished = true
+        Connection:Disconnect()
+    end)
+
+    Tween:Play()
+
+    local StartTime = os.clock()
+
+    while not Finished and os.clock() - StartTime < Duration + 1 do
+        if not Root.Parent then
+            Tween:Cancel()
+            Connection:Disconnect()
+            return false
+        end
+
+        task.wait(0.05)
+    end
+
+    if not Finished then
+        Tween:Cancel()
+        Connection:Disconnect()
+        return false
+    end
+
     return true
 end
 
 SliderObject = MinigamesTab:CreateSlider({
     name = "Sell Amount",
-    description = "Teleport to Sell when backpack reaches this count",
+    description = "Move to Sell when backpack reaches this count",
     range = {1, CurrentCapacity},
     increment = 1,
     value = math.clamp(
@@ -3897,7 +3945,7 @@ SliderObject = MinigamesTab:CreateSlider({
 
 MinigamesTab:CreateToggle({
     name = "Auto Sell",
-    description = "Teleport to Sell and sell once at the threshold",
+    description = "Move to Sell and sell once at the threshold",
     callback = function(Value)
         OTC.Config.AutoSell = Value
 
@@ -3909,19 +3957,12 @@ MinigamesTab:CreateToggle({
 })
 
 task.spawn(function()
-    local WaitingForSell = false
-    local PreviousCount = nil
-    local PreviousCapacity = nil
-
     while true do
         task.wait(0.25)
 
         if not OTC.Config.AutoSell then
             AutoSellTriggered = false
-            WaitingForSell = false
             AutoSellBusy = false
-            PreviousCount = nil
-            PreviousCapacity = nil
             continue
         end
 
@@ -3950,35 +3991,10 @@ task.spawn(function()
             if SliderObject then
                 SliderObject:Set(OTC.Config.SellAmount, true)
             end
-
-            print("[OTC AutoSell] Capacity updated:", Capacity)
         end
-
-        if WaitingForSell then
-            if Capacity ~= PreviousCapacity
-                or (PreviousCount ~= nil and Count < PreviousCount) then
-
-                print(
-                    "[OTC AutoSell] Sell detected:",
-                    PreviousCount,
-                    "->",
-                    Count
-                )
-
-                WaitingForSell = false
-                AutoSellTriggered = false
-                AutoSellBusy = false
-                PreviousCount = nil
-                PreviousCapacity = nil
-            end
-
-            continue
-        end
-
-        local RequestedThreshold = tonumber(OTC.Config.SellAmount) or 25
 
         local Threshold = math.clamp(
-            RequestedThreshold,
+            tonumber(OTC.Config.SellAmount) or 25,
             1,
             Capacity
         )
@@ -3995,51 +4011,43 @@ task.spawn(function()
         AutoSellTriggered = true
         AutoSellBusy = true
 
-        print(
-            "[OTC AutoSell] Threshold reached:",
-            Count,
-            "/",
-            Capacity,
-            "| Configured:",
-            RequestedThreshold,
-            "| Effective:",
-            Threshold
-        )
-
         task.spawn(function()
             local Success, ErrorMessage = pcall(function()
                 assert(
-                    TeleportToSell(),
-                    "Could not teleport to Sell"
+                    TweenToSell(),
+                    "Could not move to Sell"
                 )
 
                 task.wait(OTC.Config.SellCooldown or 3)
 
                 local Service = GetMiningService()
+                assert(Service, "MiningService unavailable")
 
-                assert(
-                    Service,
-                    "MiningService unavailable"
-                )
+                Service:Sell()
 
-                local Result = Service:Sell()
+                local Sold = false
 
-                print(
-                    "[OTC AutoSell] Sell response:",
-                    Result
-                )
+                for _ = 1, 20 do
+                    task.wait(0.25)
 
-                local NewState = ReadMiningState()
+                    local NewState = GetMiningState()
 
-                if NewState then
-                    PreviousCount = tonumber(NewState.Count) or Count
-                    PreviousCapacity = tonumber(NewState.Capacity) or Capacity
-                else
-                    PreviousCount = Count
-                    PreviousCapacity = Capacity
+                    if NewState then
+                        local NewCount = tonumber(NewState.Count) or 0
+                        local NewCapacity = tonumber(NewState.Capacity) or Capacity
+
+                        if NewCount < Count or NewCapacity ~= Capacity then
+                            Sold = true
+                            break
+                        end
+                    end
                 end
 
-                WaitingForSell = true
+                AutoSellTriggered = false
+
+                if not Sold then
+                    task.wait(1)
+                end
             end)
 
             if not Success then
@@ -4051,7 +4059,6 @@ task.spawn(function()
         end)
     end
 end)
-
 
 local AutoUpgradePickaxe = false
 local AutoUpgradeBackpack = false
@@ -4331,7 +4338,7 @@ local function GetOffers()
     return Offers, Day
 end
 
-local function RunAutoBuyDailyShop()
+function RunAutoBuyDailyShop()
     if not TeleportToDailyShop() then
         return
     end
@@ -4355,10 +4362,6 @@ local function RunAutoBuyDailyShop()
     local Attempts = 0
     local EstimatedCost = 0
 
-    print("===== AUTO BUY DAILY SHOP =====")
-    print("Day:", Day)
-    print("Balance:", State.Balance)
-
     for _, Offer in pairs(Offers) do
         if not OTC.Config.AutoBuyDailyShop then
             break
@@ -4374,21 +4377,12 @@ local function RunAutoBuyDailyShop()
         end
 
         if Stock == nil then
-            print("[PERMANENT - SKIP]", OfferName)
             continue
         end
 
         if Stock <= 0 then
-            print("[OUT OF STOCK]", OfferName)
             continue
         end
-
-        print(
-            "[OFFER]",
-            OfferName,
-            "| Stock:", Stock,
-            "| Price:", Price
-        )
 
         for Index = 1, Stock do
             if not OTC.Config.AutoBuyDailyShop then
@@ -4398,14 +4392,12 @@ local function RunAutoBuyDailyShop()
             State = GetMiningState()
 
             if not State or State.Active ~= true then
-                warn("Mining is no longer active.")
                 break
             end
 
             local Balance = tonumber(State.Balance) or 0
 
             if Balance < Price then
-                print("[NO MONEY]", OfferName)
                 break
             end
 
@@ -4413,26 +4405,12 @@ local function RunAutoBuyDailyShop()
                 return Service:DailyBuy(OfferId)
             end)
 
-            if not Success then
-                warn("[PURCHASE ERROR]", OfferName, Result)
-                break
-            end
-
-            if Result == false then
-                warn("[PURCHASE REJECTED]", OfferName)
+            if not Success or Result == false then
                 break
             end
 
             Attempts += 1
             EstimatedCost += Price
-
-            print(
-                "[PURCHASE ATTEMPT]",
-                OfferName,
-                Index,
-                "/",
-                Stock
-            )
 
             task.wait(OTC.Config.DailyShopDelay)
         end
@@ -4441,21 +4419,16 @@ local function RunAutoBuyDailyShop()
     State = GetMiningState()
 
     local Now = math.floor(workspace:GetServerTimeNow())
-    local RestockSeconds
 
     local Success, EndsAt = pcall(function()
         return DailyShop.EndsAt(DailyShop.Day(Now))
     end)
 
+    local RestockSeconds
+
     if Success and type(EndsAt) == "number" then
         RestockSeconds = math.max(0, EndsAt - Now)
     end
-
-    print("===== SUMMARY =====")
-    print("Purchase attempts:", Attempts)
-    print("Estimated cost:", EstimatedCost)
-    print("Balance after:", State and State.Balance)
-    print("Seconds until restock:", RestockSeconds or "Unavailable")
 end
 
 MinigamesTab:CreateToggle({
