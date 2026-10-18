@@ -4416,6 +4416,7 @@ task.spawn(function()
             AutoSellBusy = false
         end)
     end
+end)
 end
 AutoSellSection()
 
