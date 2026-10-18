@@ -4444,7 +4444,7 @@ local function GetUpgradeStand()
     return nil
 end
 
-local function TeleportToUpgrade()
+function TeleportToUpgrade()
     local Circle = GetUpgradeStand()
     if not Circle then
         warn("[OTC Upgrade] Upgrade stand not found")
