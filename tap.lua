@@ -4182,7 +4182,7 @@ task.spawn(function()
     end
 end)
 
-;(function()
+local function AutoSellSection()
     local CurrentCapacity = 2500
 local SliderObject
 local AutoSellTriggered = false
@@ -4416,7 +4416,8 @@ task.spawn(function()
             AutoSellBusy = false
         end)
     end
-end)()
+end
+AutoSellSection()
 
 local AutoUpgradePickaxe = false
 local AutoUpgradeBackpack = false
