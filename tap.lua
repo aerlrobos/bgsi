@@ -4182,10 +4182,8 @@ task.spawn(function()
     end
 end)
 
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-
-local CurrentCapacity = 2500
+(function()
+    local CurrentCapacity = 2500
 local SliderObject
 local AutoSellTriggered = false
 local AutoSellBusy = false
@@ -4418,7 +4416,7 @@ task.spawn(function()
             AutoSellBusy = false
         end)
     end
-end)
+end)()
 
 local AutoUpgradePickaxe = false
 local AutoUpgradeBackpack = false
