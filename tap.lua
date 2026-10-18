@@ -4463,7 +4463,7 @@ function TeleportToUpgrade()
     return true
 end
 
-local function PurchaseItems(Category)
+function PurchaseItems(Category)
     if UpgradeBusy[Category] then return end
     UpgradeBusy[Category] = true
 
