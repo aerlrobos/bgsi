@@ -4281,7 +4281,7 @@ local function GetDailyShop()
     )
 end
 
-local function TeleportToDailyShop()
+function TeleportToDailyShop()
     local Character = LocalPlayer.Character
         or LocalPlayer.CharacterAdded:Wait()
 
