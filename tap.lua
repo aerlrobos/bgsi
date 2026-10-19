@@ -167,6 +167,10 @@ local TapChestConfig = require(
     ReplicatedStorage.Shared.Game.TapChestConfig
 )
 
+local TapController = require(
+    ReplicatedStorage.Controllers.Game.TapController
+)
+
 local TapChestController = require(
     ReplicatedStorage.Controllers.Game.TapChestController
 )
@@ -5469,9 +5473,11 @@ HalloweenTab:CreateToggle({
     end
 })
 
-local AutoBuyHalloweenShopRunning = false
-local AutoBuyHalloweenShopToken = 0
-local AutoBuyHalloweenShopDelay = 1.2
+local AutoBuyHalloweenShop = {
+    Running = false,
+    Token = 0,
+    Delay = 1.2
+}
 
 function getHalloweenShopData()
     local replica = DataController:GetReplica()
@@ -5493,7 +5499,7 @@ function buyHalloweenShopItem(item)
     end
 
     if result.Success then
-        task.wait(AutoBuyHalloweenShopDelay)
+        task.wait(AutoBuyHalloweenShop.Delay)
         return true, result.Reason
     end
 
@@ -5516,134 +5522,97 @@ function runAutoBuyHalloweenShop(token)
         end
     end
 
-    for _, item in ipairs(limited) do
-        if not AutoBuyHalloweenShopRunning
-            or token ~= AutoBuyHalloweenShopToken
-        then
-            return
-        end
-
-        while AutoBuyHalloweenShopRunning
-            and token == AutoBuyHalloweenShopToken
-            and HalloweenShopConfig.IsOpen()
-        do
-            local data = getHalloweenShopData()
-
-            if not data then
-                task.wait(1)
-                continue
+    local function processItems(items, isLimited)
+        for _, item in ipairs(items) do
+            if not AutoBuyHalloweenShop.Running
+                or token ~= AutoBuyHalloweenShop.Token then
+                return false
             end
 
-            local candy = HalloweenShopConfig.GetCandy(data)
+            while AutoBuyHalloweenShop.Running
+                and token == AutoBuyHalloweenShop.Token
+                and HalloweenShopConfig.IsOpen() do
 
-            if type(candy) ~= "number" or candy <= 0 then
-                return
-            end
+                local data = getHalloweenShopData()
 
-            if not HalloweenShopConfig.IsListed(data, item) then
-                break
-            end
+                if not data then
+                    task.wait(1)
+                    continue
+                end
 
-            local remaining =
-                HalloweenShopConfig.GetRemaining(data, item)
+                local candy = HalloweenShopConfig.GetCandy(data)
 
-            if remaining == nil or remaining <= 0 then
-                break
-            end
+                if type(candy) ~= "number" or candy <= 0 then
+                    return false
+                end
 
-            if candy < item.Price then
-                break
-            end
+                if not HalloweenShopConfig.IsListed(data, item) then
+                    break
+                end
 
-            local success, reason = buyHalloweenShopItem(item)
+                if isLimited then
+                    local remaining =
+                        HalloweenShopConfig.GetRemaining(data, item)
 
-            if not success then
-                if reason == "NotEnoughCandy"
+                    if remaining == nil or remaining <= 0 then
+                        break
+                    end
+                end
+
+                if candy < item.Price then
+                    break
+                end
+
+                local success, reason = buyHalloweenShopItem(item)
+
+                if success then
+                    if not isLimited then
+                        continue
+                    end
+                elseif reason == "NotEnoughCandy"
                     or reason == "SoldOut"
                     or reason == "EventClosed"
-                    or reason == "RateLimited"
-                then
+                    or reason == "RateLimited" then
                     task.wait(1)
                 end
 
                 break
             end
         end
+
+        return true
     end
 
-    for _, item in ipairs(unlimited) do
-        if not AutoBuyHalloweenShopRunning
-            or token ~= AutoBuyHalloweenShopToken
-        then
-            return
-        end
-
-        while AutoBuyHalloweenShopRunning
-            and token == AutoBuyHalloweenShopToken
-            and HalloweenShopConfig.IsOpen()
-        do
-            local data = getHalloweenShopData()
-
-            if not data then
-                task.wait(1)
-                continue
-            end
-
-            local candy = HalloweenShopConfig.GetCandy(data)
-
-            if type(candy) ~= "number" or candy <= 0 then
-                return
-            end
-
-            if not HalloweenShopConfig.IsListed(data, item) then
-                break
-            end
-
-            if candy < item.Price then
-                break
-            end
-
-            local success, reason = buyHalloweenShopItem(item)
-
-            if success then
-                continue
-            end
-
-            if reason == "NotEnoughCandy"
-                or reason == "SoldOut"
-                or reason == "EventClosed"
-                or reason == "RateLimited"
-            then
-                task.wait(1)
-            end
-
-            break
-        end
+    if not processItems(limited, true) then
+        return
     end
+
+    processItems(unlimited, false)
 end
 
 HalloweenTab:CreateToggle({
     name = "Auto Buy Halloween Shop",
     description = "Buy limited-stock items first, then unlimited items",
     value = OTC.Config.AutoBuyHalloweenShop,
+
     callback = function(value)
         OTC.Config.AutoBuyHalloweenShop = value
-        AutoBuyHalloweenShopRunning = value
-        AutoBuyHalloweenShopToken += 1
+        AutoBuyHalloweenShop.Running = value
+        AutoBuyHalloweenShop.Token += 1
 
-        if value then
-            local token = AutoBuyHalloweenShopToken
-
-            task.spawn(function()
-                local ok = pcall(function()
-                    runAutoBuyHalloweenShop(token)
-                end)
-
-                if token == AutoBuyHalloweenShopToken then
-                    AutoBuyHalloweenShopRunning = false
-                    OTC.Config.AutoBuyHalloweenShop = false
-                end
-            end)
+        if not value then
+            return
         end
+
+        local token = AutoBuyHalloweenShop.Token
+
+        task.spawn(function()
+            pcall(runAutoBuyHalloweenShop, token)
+
+            if token == AutoBuyHalloweenShop.Token then
+                AutoBuyHalloweenShop.Running = false
+                OTC.Config.AutoBuyHalloweenShop = false
+            end
+        end)
     end
 })
