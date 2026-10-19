@@ -2,16 +2,16 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-ReplicatedStorage = game:GetService("ReplicatedStorage")
-Players = game:GetService("Players")
-GuiService = game:GetService("GuiService")
-RunService = game:GetService("RunService")
-CollectionService = game:GetService("CollectionService")
-TweenService = game:GetService("TweenService")
-Workspace = game:GetService("Workspace")
-LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local GuiService = game:GetService("GuiService")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
 
-OTC = {
+local OTC = {
     Config = {
         AutoTap = false,
         AutoRebirth = false,
@@ -73,265 +73,265 @@ OTC = {
     },
 }
 
-UpgradeConfig = require(
+local UpgradeConfig = require(
     ReplicatedStorage
         .Shared
         .Progression
         .UpgradeConfig
 )
 
-UpgradeController = require(
+local UpgradeController = require(
     ReplicatedStorage
         .Controllers
         .Game
         .UpgradeController
 )
 
-DataController = require(
+local DataController = require(
     ReplicatedStorage
         .Controllers
         .Core
         .DataController
 )
 
-MachineConfig = require(
+local MachineConfig = require(
     ReplicatedStorage
         .Shared
         .Pets
         .MachineConfig
 )
 
-LaunchEggConfig = require(
+local LaunchEggConfig = require(
     ReplicatedStorage
         .Shared
         .Pets
         .LaunchEggConfig
 )
 
-EggPricing = require(
+local EggPricing = require(
     ReplicatedStorage
         .Shared
         .Pets
         .EggPricing
 )
 
-PetIndexCatalog = require(
+local PetIndexCatalog = require(
     ReplicatedStorage.Shared.Pets.PetIndexCatalog
 )
 
-PhysicalUpgradeController = require(
+local PhysicalUpgradeController = require(
     ReplicatedStorage.Controllers.Game.PhysicalUpgradeController
 )
 
-PhysicalUpgradeConfig = require(
+local PhysicalUpgradeConfig = require(
     ReplicatedStorage.Shared.Progression.PhysicalUpgradeConfig
 )
 
-HatchRenderer = require(
+local HatchRenderer = require(
     ReplicatedStorage.Modules.Client.Pets.HatchRenderer
 )
 
-SecretHatchRenderer = require(
+local SecretHatchRenderer = require(
     ReplicatedStorage.Modules.Client.Pets.SecretHatchRenderer
 )
 
-DigController = require(
+local DigController = require(
     ReplicatedStorage.Controllers.Minigames.DigController
 )
 
-DigConfig = require(
+local DigConfig = require(
     ReplicatedStorage.Shared.Minigames.DigConfig
 )
 
-DigRewardPopup = require(
+local DigRewardPopup = require(
     ReplicatedStorage.Controllers.Minigames.DigRewardPopup
 )
 
-ColosseumClientAdapter = require(
+local ColosseumClientAdapter = require(
     ReplicatedStorage.Controllers.Minigames.ColosseumClientAdapter
 )
 
-ShinyStarConfig = require(
+local ShinyStarConfig = require(
     ReplicatedStorage.Shared.Game.ShinyStarConfig
 )
 
-BreakableConfig = require(ReplicatedStorage.Shared.Game.BreakableConfig)
+local BreakableConfig = require(ReplicatedStorage.Shared.Game.BreakableConfig)
 
-IslandConfig = require(ReplicatedStorage.Shared.Game.IslandBreakableConfig)
+local IslandConfig = require(ReplicatedStorage.Shared.Game.IslandBreakableConfig)
 
-IslandLandings = require(
+local IslandLandings = require(
     ReplicatedStorage.Shared.Progression.IslandLandings
 )
 
-TapChestConfig = require(
+local TapChestConfig = require(
     ReplicatedStorage.Shared.Game.TapChestConfig
 )
 
-TapChestController = require(
+local TapChestController = require(
     ReplicatedStorage.Controllers.Game.TapChestController
 )
 
-ProgressionIslandConfig = require(
+local ProgressionIslandConfig = require(
     ReplicatedStorage.Shared.Progression.IslandConfig
 )
 
-HallowBossController = require(
+local HallowBossController = require(
     ReplicatedStorage.Controllers.Game.HallowBossController
 )
 
-HallowBossConfig = require(
+local HallowBossConfig = require(
     ReplicatedStorage.Shared.Game.HallowBossConfig
 )
 
-HalloweenShopConfig = require(
+local HalloweenShopConfig = require(
     ReplicatedStorage.Shared.Items.HalloweenShopConfig
 )
 
-HalloweenShopController = require(
+local HalloweenShopController = require(
     ReplicatedStorage.Controllers.Items.HalloweenShopController
 )
 
-RainbowServerClock = require(
+local RainbowServerClock = require(
     ReplicatedStorage.Modules.Client.Core.ServerClock
 )
 
-EnchantController = require(
+local EnchantController = require(
     ReplicatedStorage.Controllers.Pets.EnchantController
 )
 
-EnchantConfig = require(
+local EnchantConfig = require(
     ReplicatedStorage.Shared.Pets.EnchantConfig
 )
 
-jumpUpgrade = assert(
+local jumpUpgrade = assert(
     PhysicalUpgradeConfig.Get("+1 Jump"),
     "Double Jump upgrade not found"
 )
 
-Comm = require(
+local Comm = require(
     ReplicatedStorage
         .Packages
         .Comm
 )
 
-ShinyStarService = Comm.ClientComm.new(
+local ShinyStarService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "ShinyStarService"
 ):BuildObject()
 
-PetIndexService = Comm.ClientComm.new(
+local PetIndexService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "PetIndexService"
 ):BuildObject()
 
-MachineService = Comm.ClientComm.new(
+local MachineService = Comm.ClientComm.new(
     ReplicatedStorage
         .RemoteServices,
     false,
     "MachineService"
 ):BuildObject()
 
-EggService = Comm.ClientComm.new(
+local EggService = Comm.ClientComm.new(
     ReplicatedStorage
         .RemoteServices,
     false,
     "EggService"
 ):BuildObject()
 
-PetService = Comm.ClientComm.new(
+local PetService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "PetService"
 ):BuildObject()
 
-MiningService = Comm.ClientComm.new(
+local MiningService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "MiningService"
 ):BuildObject()
 
-TapService = Comm.ClientComm.new(
+local TapService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "TapService"
 ):BuildObject()
 
-TrickOrTreatService = Comm.ClientComm.new(
+local TrickOrTreatService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "TrickOrTreatService"
 ):BuildObject()
 
-SkillTreeConfig = require(
+local SkillTreeConfig = require(
     ReplicatedStorage
         :WaitForChild("Shared")
         :WaitForChild("Progression")
         :WaitForChild("SkillTreeConfig")
 )
 
-Shared = ReplicatedStorage:WaitForChild("Shared")
-Controllers = ReplicatedStorage:WaitForChild("Controllers")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Controllers = ReplicatedStorage:WaitForChild("Controllers")
 
-QuestConfig = require(
+local QuestConfig = require(
     Shared:WaitForChild("Quests"):WaitForChild("QuestConfig")
 )
 
-QuestVisibility = require(
+local QuestVisibility = require(
     Shared:WaitForChild("Quests"):WaitForChild("QuestVisibility")
 )
 
-ClaimQuestEvent = ReplicatedStorage
+local ClaimQuestEvent = ReplicatedStorage
     :WaitForChild("RemoteServices")
     :WaitForChild("QuestService")
     :WaitForChild("RF")
     :WaitForChild("ClaimQuest")
 
-SkillTreeUnlock = ReplicatedStorage
+local SkillTreeUnlock = ReplicatedStorage
     :WaitForChild("RemoteServices")
     :WaitForChild("SkillTreeService")
     :WaitForChild("RF")
     :WaitForChild("Unlock")
 
-RemoteServices = ReplicatedStorage:WaitForChild("RemoteServices")
+local RemoteServices = ReplicatedStorage:WaitForChild("RemoteServices")
 
-TapEvent = RemoteServices
+local TapEvent = RemoteServices
     :WaitForChild("TapService")
     :WaitForChild("RE")
     :WaitForChild("TapRequested")
 
-RebirthEvent = RemoteServices
+local RebirthEvent = RemoteServices
     :WaitForChild("RebirthService")
     :WaitForChild("RE")
     :WaitForChild("RebirthRequested")
 
-DigBegin = ReplicatedStorage
+local DigBegin = ReplicatedStorage
     .RemoteServices
     .DigService
     .RF
     .Begin
 
-TravelRemote =
+local TravelRemote =
     ReplicatedStorage.RemoteServices.IslandService.RF.Travel
 
-IslandService = ReplicatedStorage
+local IslandService = ReplicatedStorage
     :WaitForChild("RemoteServices")
     :WaitForChild("IslandService")
 
-ResultEvent = IslandService.RE:WaitForChild("IslandUnlockResult")
+local ResultEvent = IslandService.RE:WaitForChild("IslandUnlockResult")
 
-RainbowClaimEvent = ReplicatedStorage
+local RainbowClaimEvent = ReplicatedStorage
     :WaitForChild("RemoteServices")
     :WaitForChild("MachineService")
     :WaitForChild("RE")
     :WaitForChild("MachineCraftRequested")
 
-Rayfield = loadstring(
+local Rayfield = loadstring(
     game:HttpGet("https://sirius.menu/gen2")
 )()
 
-Window = Rayfield:CreateWindow({
+local Window = Rayfield:CreateWindow({
     name = "OTC・Tap Simulator: Reborn",
     subtitle = "by aerlro",
     sidebarLayout = true,
@@ -417,50 +417,50 @@ Window = Rayfield:CreateWindow({
     },
 })
 
-HomeTab = Window:CreateTab({
+local HomeTab = Window:CreateTab({
     name = "Home",
     icon = "🏠",
 })
 
-AutoTab = Window:CreateTab({
+local AutoTab = Window:CreateTab({
     name = "Automation",
     icon = "mouse-pointer-click",
 })
 
-WorldTab = Window:CreateTab({
+local WorldTab = Window:CreateTab({
     name = "World",
     icon = "12",
 })
 
-PetsTab = Window:CreateTab({
+local PetsTab = Window:CreateTab({
     name = "Pets",
     icon = "hammer",
 })
 
-EggsTab = Window:CreateTab({
+local EggsTab = Window:CreateTab({
     name = "Eggs",
     icon = "egg",
 })
 
-MinigamesTab = Window:CreateTab({
+local MinigamesTab = Window:CreateTab({
     name = "Minigames",
     icon = "pickaxe",
 })
 
-HalloweenTab = Window:CreateTab({
+local HalloweenTab = Window:CreateTab({
     name = "Halloween",
     icon = "pumpkin",
 })
 
-HomeStartTime = os.clock()
+local HomeStartTime = os.clock()
 
-PlayerInfoText = HomeTab:CreateText({
+local PlayerInfoText = HomeTab:CreateText({
     name = "Player Info",
     text = "Loading player information...",
     icon = 95224778521476,
 })
 
-PlaytimeText = HomeTab:CreateText({
+local PlaytimeText = HomeTab:CreateText({
     name = "Playtime",
     text = "00:00:00",
     icon = 95224778521476,
@@ -575,8 +575,8 @@ function formatNumber(number)
     return formatted
 end
 
-RebirthOptions = {}
-RebirthIndexes = {}
+local RebirthOptions = {}
+local RebirthIndexes = {}
 
 function generateRebirthOptions(maxIndex)
     table.clear(RebirthOptions)
@@ -591,13 +591,13 @@ function generateRebirthOptions(maxIndex)
     end
 end
 
-maxIndex = 14
+local maxIndex = 14
 
-configFolder = ReplicatedStorage:FindFirstChild("Shared")
-progressionFolder = configFolder
+local configFolder = ReplicatedStorage:FindFirstChild("Shared")
+local progressionFolder = configFolder
     and configFolder:FindFirstChild("Progression")
 
-buttonConfigModule = progressionFolder
+local buttonConfigModule = progressionFolder
     and progressionFolder:FindFirstChild("RebirthButtonConfig")
 
 if buttonConfigModule then
@@ -738,10 +738,10 @@ AutoTab:CreateToggle({
     end,
 })
 
-SkillTreeNodes = {}
-SkillTreeNodeNames = {}
+local SkillTreeNodes = {}
+local SkillTreeNodeNames = {}
 
-SkillTreeDirections = {
+local SkillTreeDirections = {
     "N",
     "S",
     "NE",
@@ -910,8 +910,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-AutoClaimIndexAll = false
-IndexClaimSession = 0
+local AutoClaimIndexAll = false
+local IndexClaimSession = 0
 
 AutoTab:CreateToggle({
     name = "Auto Claim Index All",
@@ -974,8 +974,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-AutoBuyDoubleJumps = false
-DoubleJumpSession = 0
+local AutoBuyDoubleJumps = false
+local DoubleJumpSession = 0
 
 AutoTab:CreateToggle({
     name = "Auto Buy Double Jumps",
@@ -1042,7 +1042,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-ShinyStars = {
+local ShinyStars = {
     {Id = "Spawn1", Pos = Vector3.new(-79.69999694824219, -49.06557846069336, -1930.4000244140625)},
     {Id = "Spawn2", Pos = Vector3.new(-61.90705490112305, -53.56557846069336, -1791.1435546875)},
     {Id = "Spawn3", Pos = Vector3.new(53.599998474121094, -513.2655639648438, -2015.699951171875)},
@@ -1123,7 +1123,7 @@ function CollectShinyStar(Star)
     end)
 end
 
-ShinyStarWorkerRunning = false
+local ShinyStarWorkerRunning = false
 
 function StartShinyStarCollection()
     if ShinyStarWorkerRunning then
@@ -1162,8 +1162,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-ClickerChestWorkerRunning = false
-CurrentClickerChest = nil
+local ClickerChestWorkerRunning = false
+local CurrentClickerChest = nil
 
 function GetClickerChestFolder()
     return workspace:FindFirstChild("ClickerChest")
@@ -1367,7 +1367,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-IslandAttackOrder = {
+local IslandAttackOrder = {
     "SkyIsland",
     "Autumn",
     "Mushroom",
@@ -1376,7 +1376,7 @@ IslandAttackOrder = {
     "ShadowRelm"
 }
 
-IslandAttackToken = 0
+local IslandAttackToken = 0
 
 function getIslandAttackRoot()
     local character = LocalPlayer.Character
@@ -1567,7 +1567,7 @@ AutoTab:CreateToggle({
     end
 })
 
-AutoClaimChestsRunning = false
+local AutoClaimChestsRunning = false
 
 function getReadyTapChest(id)
     local replica = DataController:GetReplica()
@@ -1665,8 +1665,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-IslandOptions = {"None"}
-IslandNames = {}
+local IslandOptions = {"None"}
+local IslandNames = {}
 
 for name, config in pairs(ProgressionIslandConfig.Islands) do
     table.insert(IslandNames, {
@@ -1716,9 +1716,9 @@ WorldTab:CreateDropdown({
     end,
 })
 
-IslandOrder = {}
+local IslandOrder = {}
 
-IslandPriority = {
+local IslandPriority = {
     ["Sky Island"] = 1,
     ["Sky Islands"] = 1,
     Autumn = 2,
@@ -1747,8 +1747,8 @@ table.sort(IslandOrder, function(a, b)
     return orderA < orderB
 end)
 
-UnlockEveryIslandEnabled = false
-UnlockEveryIslandRunning = false
+local UnlockEveryIslandEnabled = false
+local UnlockEveryIslandRunning = false
 
 function unlockVisitIsland(islandName)
     if not UnlockEveryIslandEnabled then
@@ -1897,10 +1897,10 @@ WorldTab:CreateToggle({
     end,
 })
 
-PetOptions = {"None"}
-PetDropdown
-SelectedPetName = ""
-IsRefreshingPets = false
+local PetOptions = {"None"}
+local PetDropdown
+local SelectedPetName = ""
+local IsRefreshingPets = false
 
 function GetPetName(option)
     if type(option) ~= "string" then
@@ -1934,7 +1934,7 @@ function getEquippedIds(petData)
     return equippedIds
 end
 
-function RefreshPets()
+local function RefreshPets()
     if IsRefreshingPets then
         return
     end
@@ -2047,7 +2047,7 @@ function RefreshPets()
     end
 end
 
-function TeleportToGoldenMachine()
+local function TeleportToGoldenMachine()
     local character = LocalPlayer.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
 
@@ -2097,8 +2097,8 @@ PetDropdown = PetsTab:CreateDropdown({
 
 RefreshPets()
 
-GoldenOptions = {}
-GoldenCounts = {}
+local GoldenOptions = {}
+local GoldenCounts = {}
 
 for count, chance in ipairs(MachineConfig.Golden.Chances) do
     local option = string.format("%d (%.0f%%)", count, chance)
@@ -2237,12 +2237,12 @@ PetsTab:CreateSection({
     name = "▶ Diamond"
 })
 
-DiamondPetOptions = {"None"}
-DiamondPetDropdown
-SelectedDiamondPetName = ""
-IsRefreshingDiamondPets = false
+local DiamondPetOptions = {"None"}
+local DiamondPetDropdown
+local SelectedDiamondPetName = ""
+local IsRefreshingDiamondPets = false
 
-function GetDiamondPetName(option)
+local function GetDiamondPetName(option)
     if type(option) ~= "string" then
         return ""
     end
@@ -2250,7 +2250,7 @@ function GetDiamondPetName(option)
     return option:match("^(.-)%s%[") or option
 end
 
-function RefreshDiamondPets()
+local function RefreshDiamondPets()
     if IsRefreshingDiamondPets then
         return
     end
@@ -2382,8 +2382,8 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
 
 RefreshDiamondPets()
 
-DiamondOptions = {}
-DiamondCounts = {}
+local DiamondOptions = {}
+local DiamondCounts = {}
 
 for count, chance in ipairs(MachineConfig.Diamond.Chances) do
     local option = string.format("%d (%.0f%%)", count, chance)
@@ -2534,12 +2534,12 @@ PetsTab:CreateSection({
     name = "▶ Rainbow"
 })
 
-RainbowPetOptions = {"None"}
-RainbowPetDropdown
-SelectedRainbowPetName = ""
-IsRefreshingRainbowPets = false
+local RainbowPetOptions = {"None"}
+local RainbowPetDropdown
+local SelectedRainbowPetName = ""
+local IsRefreshingRainbowPets = false
 
-function GetRainbowPetName(option)
+local function GetRainbowPetName(option)
     if type(option) ~= "string" then
         return ""
     end
@@ -2547,7 +2547,7 @@ function GetRainbowPetName(option)
     return option:match("^(.-)%s%[") or option
 end
 
-function RefreshRainbowPets()
+local function RefreshRainbowPets()
     if IsRefreshingRainbowPets then
         return
     end
@@ -2677,9 +2677,9 @@ RainbowPetDropdown = PetsTab:CreateDropdown({
 
 RefreshRainbowPets()
 
-RainbowCountOptions = {}
-RainbowCountValues = {}
-RainbowDurationLabels = {
+local RainbowCountOptions = {}
+local RainbowCountValues = {}
+local RainbowDurationLabels = {
     [2] = "5h",
     [3] = "2h30",
     [4] = "1h",
@@ -2697,7 +2697,7 @@ for count = MachineConfig.Shiny.MinPets, #MachineConfig.Shiny.Durations do
     RainbowCountValues[option] = count
 end
 
-SelectedRainbowCount = RainbowCountOptions[1]
+local SelectedRainbowCount = RainbowCountOptions[1]
 
 for option, count in pairs(RainbowCountValues) do
     if count == OTC.Config.RainbowPetCount then
@@ -2864,9 +2864,9 @@ task.spawn(function()
     end
 end)
 
-RainbowClaimToken = 0
+local RainbowClaimToken = 0
 
-function AutoClaimRainbowLoop(token)
+local function AutoClaimRainbowLoop(token)
     local lastClaims = {}
 
     while OTC.Config.AutoClaimRainbowPets
@@ -2953,26 +2953,26 @@ OTC.Config.SelectedEnchantPet = ""
 OTC.Config.SelectedEnchantSlot = 1
 OTC.Config.SelectedEnchantTypes = {}
 
-EnchantPetOptions = {}
-EnchantPetIds = {}
-SelectedEnchantPetId = nil
-SelectedEnchantTypes = {}
-SelectedEnchantSlot = 1
-AutoEnchantToken = 0
+local EnchantPetOptions = {}
+local EnchantPetIds = {}
+local SelectedEnchantPetId = nil
+local SelectedEnchantTypes = {}
+local SelectedEnchantSlot = 1
+local AutoEnchantToken = 0
 
-function GetEnchantData()
+local function GetEnchantData()
     local replica = DataController:GetReplica()
     return replica and replica.Data
 end
 
-function GetCurrentEnchant(pet)
+local function GetCurrentEnchant(pet)
     local first = pet.Enchant or "None"
     local second = pet.Enchant2 or "None"
 
     return first .. " / " .. second
 end
 
-function RefreshEnchantPets()
+local function RefreshEnchantPets()
     table.clear(EnchantPetOptions)
     table.clear(EnchantPetIds)
 
@@ -3005,7 +3005,7 @@ function RefreshEnchantPets()
     table.sort(EnchantPetOptions)
 end
 
-EnchantTypeOptions = {}
+local EnchantTypeOptions = {}
 
 for enchantName in pairs(EnchantConfig.Enchants) do
     if EnchantConfig.IsFilterable(enchantName) then
@@ -3015,7 +3015,7 @@ end
 
 table.sort(EnchantTypeOptions)
 
-function GetSelectedEnchantList()
+local function GetSelectedEnchantList()
     local result = {}
 
     for enchantName, enabled in pairs(SelectedEnchantTypes) do
@@ -3028,7 +3028,7 @@ function GetSelectedEnchantList()
     return result
 end
 
-function StartAutoEnchant()
+local function StartAutoEnchant()
     if not SelectedEnchantPetId then
         return false
     end
@@ -3076,7 +3076,7 @@ function StartAutoEnchant()
     return true
 end
 
-function StopAutoEnchant()
+local function StopAutoEnchant()
     pcall(function()
         EnchantController:AutoStop()
     end)
@@ -3161,8 +3161,8 @@ PetsTab:CreateToggle({
     end
 })
 
-AutoEquipBestPets = false
-AutoEquipBestSession = 0
+local AutoEquipBestPets = false
+local AutoEquipBestSession = 0
 
 PetsTab:CreateToggle({
     name = "Auto Equip Best Pets",
@@ -3200,14 +3200,14 @@ PetsTab:CreateToggle({
     end,
 })
 
-EggOptions = {}
-EggNames = {}
+local EggOptions = {}
+local EggNames = {}
 
-OriginalHatchPlay = HatchRenderer.Play
-OriginalSecretPlay = SecretHatchRenderer.Play
-OriginalSecretPlayReveal = SecretHatchRenderer.PlayReveal
+local OriginalHatchPlay = HatchRenderer.Play
+local OriginalSecretPlay = SecretHatchRenderer.Play
+local OriginalSecretPlayReveal = SecretHatchRenderer.PlayReveal
 
-function IsHatchAnimationDisabled()
+local function IsHatchAnimationDisabled()
     return workspace:GetAttribute("DisableEggHatchAnimation") == true
 end
 
@@ -3256,7 +3256,7 @@ SecretHatchRenderer.PlayReveal = function(self, ...)
     return OriginalSecretPlayReveal(self, ...)
 end
 
-function FormatEggPrice(price)
+local function FormatEggPrice(price)
     local suffixes = {
         {1e15, "Qa"},
         {1e12, "T"},
@@ -3303,7 +3303,7 @@ for _, eggName in ipairs(EggNames) do
     )
 end
 
-EggOptionToName = {}
+local EggOptionToName = {}
 
 for _, option in ipairs(EggOptions) do
     local eggName = option:match("^(.-) %[")
@@ -3313,7 +3313,7 @@ for _, option in ipairs(EggOptions) do
     end
 end
 
-SelectedEggOption
+local SelectedEggOption
 
 for option, eggName in pairs(EggOptionToName) do
     if eggName == OTC.Config.SelectedEgg then
@@ -3336,19 +3336,19 @@ EggsTab:CreateDropdown({
     end,
 })
 
-AmountOptions = {
+local AmountOptions = {
     "1 Egg",
     "3 Eggs",
     "8 Eggs",
 }
 
-AmountValues = {
+local AmountValues = {
     ["1 Egg"] = 1,
     ["3 Eggs"] = 3,
     ["8 Eggs"] = 8,
 }
 
-SelectedAmount = "1 Egg"
+local SelectedAmount = "1 Egg"
 
 for option, amount in pairs(AmountValues) do
     if amount == OTC.Config.HatchAmount then
@@ -3382,7 +3382,7 @@ EggsTab:CreateToggle({
     end,
 })
 
-function TeleportToEgg()
+local function TeleportToEgg()
     local eggName = OTC.Config.SelectedEgg
     local eggConfig = eggName and LaunchEggConfig[eggName]
 
@@ -3449,7 +3449,7 @@ function TeleportToEgg()
 end
 
 
-HatchSession = 0
+local HatchSession = 0
 
 EggsTab:CreateToggle({
     name = "Auto Hatch",
@@ -3512,18 +3512,18 @@ EggsTab:CreateToggle({
     end,
 })
 
-AutoDig = false
-AutoDigSession = 0
+local AutoDig = false
+local AutoDigSession = 0
 
-function log(...)
+local function log(...)
     print("[OTC Auto Dig]", ...)
 end
 
-function logError(...)
+local function logError(...)
     warn("[OTC Auto Dig ERROR]", ...)
 end
 
-function TeleportToDigZone()
+local function TeleportToDigZone()
     log("Caut DigZone...")
 
     local islands = workspace:FindFirstChild("Ts2Islands")
@@ -3570,9 +3570,9 @@ function TeleportToDigZone()
     return true
 end
 
-lastRewardClose = 0
+local lastRewardClose = 0
 
-function HandleDigReward()
+local function HandleDigReward()
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then
         return false
@@ -3608,7 +3608,7 @@ function HandleDigReward()
     return false
 end
 
-function TryActivate(reason)
+local function TryActivate(reason)
     log("Activate() apelat. Motiv:", reason)
 
     local success, result = pcall(function()
@@ -3784,10 +3784,10 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-AutoPetDefense = false
-AutoPetDefenseSession = 0
+local AutoPetDefense = false
+local AutoPetDefenseSession = 0
 
-function TeleportToColosseum()
+local function TeleportToColosseum()
     local island = workspace:FindFirstChild("WaveDefence Island")
     local waveDefense = island and island:FindFirstChild("WaveDefense")
     local colosseum = waveDefense and waveDefense:FindFirstChild("Colosseum")
@@ -3827,7 +3827,7 @@ function TeleportToColosseum()
     return true
 end
 
-function StartPetDefense()
+local function StartPetDefense()
     print("[OTC Pet Defense] Începem procedura de start...")
 
     if not TeleportToColosseum() then
@@ -3971,25 +3971,25 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-MiningController = nil
-MiningService = nil
-MiningConfig = nil
+local MiningController = nil
+local MiningService = nil
+local MiningConfig = nil
 
-MiningLogHistory = {}
-MAX_MINING_LOGS = 8
+local MiningLogHistory = {}
+local MAX_MINING_LOGS = 8
 
-PortalTarget = Vector3.new(12.794289, 5448.823242, -1884.811035)
-OutsidePosition = Vector3.new(5.45, 5436.12, -1878.03)
+local PortalTarget = Vector3.new(12.794289, 5448.823242, -1884.811035)
+local OutsidePosition = Vector3.new(5.45, 5436.12, -1878.03)
 
-REFRESH_INTERVAL = 300
-RETURN_DELAY = 3
+local REFRESH_INTERVAL = 300
+local RETURN_DELAY = 3
 
-MineRefreshInProgress = false
-MineRefreshBusy = false
-AutoMineBusy = false
-MiningIndex = 1
+local MineRefreshInProgress = false
+local MineRefreshBusy = false
+local AutoMineBusy = false
+local MiningIndex = 1
 
-MiningLog = MinigamesTab:CreateText({
+local MiningLog = MinigamesTab:CreateText({
     name = "Mining Logs",
     text = "AutoMine ready."
 })
@@ -4522,11 +4522,11 @@ end)
 
 function AutoSellSection()
     local CurrentCapacity = 2500
-SliderObject
-AutoSellTriggered = false
-AutoSellBusy = false
+local SliderObject
+local AutoSellTriggered = false
+local AutoSellBusy = false
 
-function GetSellPad()
+local function GetSellPad()
     local MineArea = workspace:FindFirstChild("MineArea")
     local CaveDecor = MineArea and MineArea:FindFirstChild("CaveDecor")
     local Stands = CaveDecor and CaveDecor:FindFirstChild("Stands")
@@ -4542,7 +4542,7 @@ function GetSellPad()
     return SellCircle
 end
 
-function TweenToSell()
+local function TweenToSell()
     local SellCircle = GetSellPad()
 
     if not SellCircle then
@@ -4758,16 +4758,16 @@ end)
 end
 AutoSellSection()
 
-AutoUpgradePickaxe = false
-AutoUpgradeBackpack = false
-UpgradeDelay = 0.1
+local AutoUpgradePickaxe = false
+local AutoUpgradeBackpack = false
+local UpgradeDelay = 0.1
 
-UpgradeBusy = {
+local UpgradeBusy = {
     Tool = false,
     Backpack = false
 }
 
-function GetUpgradeStand()
+local function GetUpgradeStand()
     local MineArea = workspace:FindFirstChild("MineArea")
     local CaveDecor = MineArea and MineArea:FindFirstChild("CaveDecor")
     local Stands = CaveDecor and CaveDecor:FindFirstChild("Stands")
@@ -5143,11 +5143,11 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-AutoTrickOrTreat = false
-TrickOrTreatRunning = false
-TrickOrTreatDelay = 1
+local AutoTrickOrTreat = false
+local TrickOrTreatRunning = false
+local TrickOrTreatDelay = 1
 
-function getTrickOrTreatHouses()
+local function getTrickOrTreatHouses()
     local houses = {}
     local island = Workspace:FindFirstChild("HalloweenIsland")
 
@@ -5171,7 +5171,7 @@ function getTrickOrTreatHouses()
     return houses
 end
 
-function runAutoTrickOrTreat()
+local function runAutoTrickOrTreat()
     if TrickOrTreatRunning then
         return
     end
@@ -5275,15 +5275,15 @@ HalloweenTab:CreateToggle({
 })
 
 
-HallowLordRunning = false
-HallowLordToken = 0
+local HallowLordRunning = false
+local HallowLordToken = 0
 
-function HallowLordGetRoot()
+local function HallowLordGetRoot()
     local character = LocalPlayer.Character
     return character and character:FindFirstChild("HumanoidRootPart")
 end
 
-function HallowLordFindPlatform()
+local function HallowLordFindPlatform()
     for _, part in ipairs(
         CollectionService:GetTagged(
             HallowBossConfig.PlatformTag or "BossPlatform"
@@ -5299,7 +5299,7 @@ function HallowLordFindPlatform()
     return nil
 end
 
-function HallowLordTeleportHalloween()
+local function HallowLordTeleportHalloween()
     local ok, result = pcall(function()
         return TravelRemote:InvokeServer({
             Source = "Portal",
@@ -5316,7 +5316,7 @@ function HallowLordTeleportHalloween()
     return island ~= nil
 end
 
-function HallowLordTeleportBoss()
+local function HallowLordTeleportBoss()
     local platform = HallowLordFindPlatform()
     local root = HallowLordGetRoot()
 
@@ -5334,7 +5334,7 @@ function HallowLordTeleportBoss()
     return true
 end
 
-function HallowLordStart(token)
+local function HallowLordStart(token)
     if not HallowLordTeleportHalloween() then
         warn("[AutoHallowLord] Halloween teleport failed.")
         return
@@ -5373,7 +5373,7 @@ function HallowLordStart(token)
     end
 end
 
-function HallowLordSetEnabled(enabled)
+local function HallowLordSetEnabled(enabled)
     OTC.Config.AutoBeatHallowLord = enabled
     HallowLordRunning = enabled
     HallowLordToken += 1
@@ -5408,11 +5408,11 @@ HalloweenTab:CreateToggle({
     end
 })
 
-AutoBuyHalloweenShopRunning = false
-AutoBuyHalloweenShopToken = 0
-AutoBuyHalloweenShopDelay = 1.2
+local AutoBuyHalloweenShopRunning = false
+local AutoBuyHalloweenShopToken = 0
+local AutoBuyHalloweenShopDelay = 1.2
 
-function getHalloweenShopData()
+local function getHalloweenShopData()
     local replica = DataController:GetReplica()
 
     if not replica or type(replica.Data) ~= "table" then
@@ -5422,7 +5422,7 @@ function getHalloweenShopData()
     return replica.Data
 end
 
-function buyHalloweenShopItem(item)
+local function buyHalloweenShopItem(item)
     local ok, result = pcall(function()
         return HalloweenShopController:Purchase(item.Id)
     end)
@@ -5439,7 +5439,7 @@ function buyHalloweenShopItem(item)
     return false, result.Reason
 end
 
-function runAutoBuyHalloweenShop(token)
+local function runAutoBuyHalloweenShop(token)
     if not HalloweenShopConfig.IsOpen() then
         return
     end
