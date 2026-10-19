@@ -35,6 +35,10 @@ local OTC = {
         AutoBuyDailyShop = false,
         DailyShopDelay = 0.4,
 
+        AutoBeatHallowLord = false,
+        HallowLordTapDelay = 0.15,
+        AutoBuyHalloweenShop = false,
+
         AutoSell = false,
         SellAmount = 25,
         SellCooldown = 3,
@@ -169,7 +173,23 @@ local TapChestController = require(
 local ProgressionIslandConfig = require(
     ReplicatedStorage.Shared.Progression.IslandConfig
 )
-  
+
+local HallowBossController = require(
+    ReplicatedStorage.Controllers.Game.HallowBossController
+)
+
+local HallowBossConfig = require(
+    ReplicatedStorage.Shared.Game.HallowBossConfig
+)
+
+local HalloweenShopConfig = require(
+    ReplicatedStorage.Shared.Items.HalloweenShopConfig
+)
+
+local HalloweenShopController = require(
+    ReplicatedStorage.Controllers.Items.HalloweenShopController
+)
+
 local jumpUpgrade = assert(
     PhysicalUpgradeConfig.Get("+1 Jump"),
     "Double Jump upgrade not found"
@@ -223,6 +243,12 @@ local TapService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "TapService"
+):BuildObject()
+
+local TrickOrTreatService = Comm.ClientComm.new(
+    ReplicatedStorage.RemoteServices,
+    false,
+    "TrickOrTreatService"
 ):BuildObject()
 
 local SkillTreeConfig = require(
@@ -400,6 +426,11 @@ local EggsTab = Window:CreateTab({
 local MinigamesTab = Window:CreateTab({
     name = "Minigames",
     icon = "pickaxe",
+})
+
+local HalloweenTab = Window:CreateTab({
+    name = "Halloween",
+    icon = "pumpkin",
 })
 
 local HomeStartTime = os.clock()
@@ -1615,65 +1646,56 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoTeleportIslands = false
-local TeleportLoopRunning = false
-local IslandDelay = 3
+local IslandOptions = {"None"}
+local IslandNames = {}
 
-local function getAllIslands()
-    local islands = {}
-
-    for name, config in ProgressionIslandConfig.Islands do
-        table.insert(islands, {
-            Name = name,
-            Order = config.Order or math.huge
-        })
-    end
-
-    table.sort(islands, function(a, b)
-        return a.Order < b.Order
-    end)
-
-    return islands
+for name, config in pairs(ProgressionIslandConfig.Islands) do
+    table.insert(IslandNames, {
+        Name = name,
+        Order = config.Order or math.huge
+    })
 end
 
-local function runIslandTeleport()
-    while AutoTeleportIslands do
-        local islands = getAllIslands()
+table.sort(IslandNames, function(a, b)
+    if a.Order == b.Order then
+        return a.Name < b.Name
+    end
 
-        for _, island in ipairs(islands) do
-            if not AutoTeleportIslands then
-                break
-            end
+    return a.Order < b.Order
+end)
 
-            pcall(function()
+for _, island in ipairs(IslandNames) do
+    table.insert(IslandOptions, island.Name)
+end
+
+WorldTab:CreateDropdown({
+    name = "Islands",
+    description = "Select an island to teleport to.",
+    options = IslandOptions,
+    value = "None",
+    callback = function(value)
+        if value == "None" then
+            return
+        end
+
+        if not table.find(IslandOptions, value) then
+            return
+        end
+
+        task.spawn(function()
+            local success, err = pcall(function()
                 TravelRemote:InvokeServer({
                     Source = "Menu",
-                    Island = island.Name
+                    Island = value
                 })
             end)
 
-            task.wait(IslandDelay)
-        end
-
-        task.wait(1)
-    end
-
-    TeleportLoopRunning = false
-end
-
-WorldTab:CreateToggle({
-    Name = "Auto Teleport Islands",
-    CurrentValue = false,
-    Callback = function(value)
-        AutoTeleportIslands = value
-
-        if value and not TeleportLoopRunning then
-            TeleportLoopRunning = true
-            task.spawn(runIslandTeleport)
-        end
+            if not success then
+                warn("[OTC Islands] Teleport failed:", err)
+            end
+        end)
     end,
 })
-
 
 local IslandOrder = {}
 
@@ -2319,7 +2341,7 @@ local function RefreshDiamondPets()
 end
 
 DiamondPetDropdown = PetsTab:CreateDropdown({
-    name = "Diamond Pets",
+    name = "Golden Pets",
     description = "Live inventory of Golden pets and equipped status.",
     options = DiamondPetOptions,
     value = "None",
@@ -2702,7 +2724,7 @@ PetsTab:CreateToggle({
                 end
 
                 root.CFrame = CFrame.new(
-                    -106.900513, 11104.2422, -2021.28284,
+                    -106.900513, 11130.2422, -2021.28284,
                     -0.658110976, -0.0182565581, -0.752699971,
                     -0.00705140783, 0.99981159, -0.0180849154,
                     0.752888322, -0.00659428211, -0.658115745
@@ -3656,7 +3678,7 @@ local MiningLog = MinigamesTab:CreateText({
     text = "AutoMine ready."
 })
 
-local function UpdateMiningLog(Message)
+function UpdateMiningLog(Message)
     table.insert(
         MiningLogHistory,
         1,
@@ -3672,7 +3694,7 @@ local function UpdateMiningLog(Message)
     end)
 end
 
-local function GetMiningController()
+function GetMiningController()
     if MiningController then
         return MiningController
     end
@@ -3697,7 +3719,7 @@ local function GetMiningController()
     return nil
 end
 
-local function GetMiningService()
+function GetMiningService()
     if MiningService then
         return MiningService
     end
@@ -3731,7 +3753,7 @@ local function GetMiningService()
     return nil
 end
 
-local function GetMiningConfig()
+function GetMiningConfig()
     if MiningConfig then
         return MiningConfig
     end
@@ -3757,7 +3779,7 @@ local function GetMiningConfig()
     return nil
 end
 
-local function GetMiningState()
+function GetMiningState()
     local Controller = GetMiningController()
 
     if not Controller then
@@ -3779,7 +3801,7 @@ local function GetMiningState()
     return nil
 end
 
-local function ParseMiningCell(Block)
+function ParseMiningCell(Block)
     local X, Y, Z = Block.Name:match(
         "^(-?%d+):(-?%d+):(-?%d+)$"
     )
@@ -3791,12 +3813,12 @@ local function ParseMiningCell(Block)
     return tonumber(X), tonumber(Y), tonumber(Z)
 end
 
-local function GetMiningBlock(BlockName)
+function GetMiningBlock(BlockName)
     local Folder = workspace:FindFirstChild("LocalMiningBlocks")
     return Folder and Folder:FindFirstChild(BlockName)
 end
 
-local function GetMiningBlockPosition(BlockName)
+function GetMiningBlockPosition(BlockName)
     local Block = GetMiningBlock(BlockName)
 
     if not Block then
@@ -3815,7 +3837,7 @@ local function GetMiningBlockPosition(BlockName)
     return Part and Part.Position or nil
 end
 
-local function MoveNearMiningBlock(Position)
+function MoveNearMiningBlock(Position)
     if MineRefreshInProgress then
         return false
     end
@@ -3862,7 +3884,7 @@ local function MoveNearMiningBlock(Position)
     return InRange
 end
 
-local function GetMiningBlockStats(State, Cell)
+function GetMiningBlockStats(State, Cell)
     local Config = GetMiningConfig()
 
     if not Config or not State or not Cell then
@@ -3893,7 +3915,7 @@ local function GetMiningBlockStats(State, Cell)
     }
 end
 
-local function GetMiningCandidates()
+function GetMiningCandidates()
     local Folder = workspace:FindFirstChild("LocalMiningBlocks")
     local Candidates = {}
 
@@ -3922,7 +3944,7 @@ local function GetMiningCandidates()
     return Candidates
 end
 
-local function HitMiningCell(State, Cell)
+function HitMiningCell(State, Cell)
     if MineRefreshInProgress then
         return false
     end
@@ -4182,7 +4204,7 @@ task.spawn(function()
     end
 end)
 
-local function AutoSellSection()
+function AutoSellSection()
     local CurrentCapacity = 2500
 local SliderObject
 local AutoSellTriggered = false
@@ -4635,7 +4657,7 @@ MinigamesTab:CreateToggle({
     end
 })
 
-local function GetDailyShop()
+function GetDailyShop()
     return require(
         ReplicatedStorage.Shared.Minigames.Mining.DailyShop
     )
@@ -4803,4 +4825,448 @@ MinigamesTab:CreateToggle({
             task.spawn(RunAutoBuyDailyShop)
         end
     end,
+})
+
+local AutoTrickOrTreat = false
+local TrickOrTreatRunning = false
+local TrickOrTreatDelay = 1
+
+local function getTrickOrTreatHouses()
+    local houses = {}
+    local island = Workspace:FindFirstChild("HalloweenIsland")
+
+    if not island then
+        return houses
+    end
+
+    for _, object in ipairs(island:GetDescendants()) do
+        if object:IsA("Model") and object.Name == "TrickOrTreat" then
+            local houseId = object:GetAttribute("HouseId")
+
+            if houseId ~= nil then
+                table.insert(houses, {
+                    Model = object,
+                    Id = houseId
+                })
+            end
+        end
+    end
+
+    return houses
+end
+
+local function runAutoTrickOrTreat()
+    if TrickOrTreatRunning then
+        return
+    end
+
+    TrickOrTreatRunning = true
+
+    local success, result = pcall(function()
+        ReplicatedStorage.RemoteServices.IslandService.RF.Travel:InvokeServer({
+            Source = "Portal",
+            Island = "Halloween"
+        })
+    end)
+
+    if not success then
+        warn("[OTC Halloween] Travel failed:", result)
+        TrickOrTreatRunning = false
+        return
+    end
+
+    local island
+
+    for _ = 1, 60 do
+        island = Workspace:FindFirstChild("HalloweenIsland")
+
+        if island then
+            break
+        end
+
+        if not AutoTrickOrTreat then
+            TrickOrTreatRunning = false
+            return
+        end
+
+        task.wait(0.5)
+    end
+
+    if not island then
+        warn("[OTC Halloween] HalloweenIsland not loaded.")
+        TrickOrTreatRunning = false
+        return
+    end
+
+    while AutoTrickOrTreat do
+        local houses = getTrickOrTreatHouses()
+
+        if #houses == 0 then
+            task.wait(2)
+        else
+            for _, house in ipairs(houses) do
+                if not AutoTrickOrTreat then
+                    break
+                end
+
+                if house.Model:IsDescendantOf(Workspace) then
+                    local character = LocalPlayer.Character
+                        or LocalPlayer.CharacterAdded:Wait()
+
+                    local root = character:FindFirstChild("HumanoidRootPart")
+
+                    if root then
+                        root.CFrame = house.Model:GetPivot() * CFrame.new(0, 0, 4)
+                        task.wait(0.5)
+
+                        local knockSuccess, knockResult = pcall(function()
+                            return TrickOrTreatService:Knock(house.Id)
+                        end)
+
+                        if knockSuccess then
+                            print("[OTC Halloween] Knock:", house.Id, knockResult)
+                        else
+                            warn("[OTC Halloween] Knock failed:", house.Id, knockResult)
+                        end
+
+                        task.wait(TrickOrTreatDelay)
+                    end
+                end
+            end
+
+            task.wait(1)
+        end
+    end
+
+    TrickOrTreatRunning = false
+end
+
+HalloweenTab:CreateSection({
+    name = "▶ Halloween"
+})
+
+HalloweenTab:CreateToggle({
+    name = "Auto Trick or Treat",
+    description = "Automatically visit Halloween houses.",
+    value = false,
+    callback = function(value)
+        AutoTrickOrTreat = value
+
+        if value then
+            task.spawn(runAutoTrickOrTreat)
+        end
+    end,
+})
+
+
+local HallowLordRunning = false
+local HallowLordToken = 0
+
+local function HallowLordGetRoot()
+    local character = LocalPlayer.Character
+    return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function HallowLordFindPlatform()
+    for _, part in ipairs(
+        CollectionService:GetTagged(
+            HallowBossConfig.PlatformTag or "BossPlatform"
+        )
+    ) do
+        if part:IsA("BasePart")
+            and part:IsDescendantOf(Workspace)
+        then
+            return part
+        end
+    end
+
+    return nil
+end
+
+local function HallowLordTeleportHalloween()
+    local ok, result = pcall(function()
+        return TravelRemote:InvokeServer({
+            Source = "Portal",
+            Island = "Halloween",
+        })
+    end)
+
+    if not ok then
+        warn("[AutoHallowLord] Travel failed:", result)
+        return false
+    end
+
+    local island = Workspace:WaitForChild("HalloweenIsland", 15)
+    return island ~= nil
+end
+
+local function HallowLordTeleportBoss()
+    local platform = HallowLordFindPlatform()
+    local root = HallowLordGetRoot()
+
+    if not platform or not root then
+        return false
+    end
+
+    local position = platform.CFrame:PointToWorldSpace(
+        Vector3.new(0, platform.Size.Y / 2 + 5, 0)
+    )
+
+    root.CFrame = CFrame.new(position)
+    task.wait(0.5)
+
+    return true
+end
+
+local function HallowLordStart(token)
+    if not HallowLordTeleportHalloween() then
+        warn("[AutoHallowLord] Halloween teleport failed.")
+        return
+    end
+
+    while HallowLordRunning
+        and token == HallowLordToken
+    do
+        local ok, state = pcall(function()
+            return HallowBossController:GetDebugState()
+        end)
+
+        if ok and type(state) == "table" then
+            if state.Phase == "Fight" then
+                if state.InZone ~= true then
+                    HallowLordTeleportBoss()
+                    task.wait(1)
+                else
+                    local tapOK, tapError = pcall(function()
+                        TapController:Tap()
+                    end)
+
+                    if not tapOK then
+                        warn("[AutoHallowLord] Tap failed:", tapError)
+                        task.wait(0.5)
+                    else
+                        task.wait(OTC.Config.HallowLordTapDelay)
+                    end
+                end
+            else
+                task.wait(0.5)
+            end
+        else
+            task.wait(1)
+        end
+    end
+end
+
+local function HallowLordSetEnabled(enabled)
+    OTC.Config.AutoBeatHallowLord = enabled
+    HallowLordRunning = enabled
+    HallowLordToken += 1
+
+    local token = HallowLordToken
+
+    if enabled then
+        task.spawn(function()
+            local ok, err = pcall(function()
+                HallowLordStart(token)
+            end)
+
+            if not ok then
+                warn("[AutoHallowLord] Error:", err)
+            end
+
+            if token == HallowLordToken then
+                HallowLordRunning = false
+                OTC.Config.AutoBeatHallowLord = false
+            end
+        end)
+    end
+end
+
+
+HalloweenTab:CreateToggle({
+    name = "Auto Beat Hallow Lord",
+    description = "Teleport to Halloween and fight Hallow Lord automatically",
+    value = OTC.Config.AutoBeatHallowLord,
+    callback = function(value)
+        HallowLordSetEnabled(value)
+    end
+})
+
+local AutoBuyHalloweenShopRunning = false
+local AutoBuyHalloweenShopToken = 0
+local AutoBuyHalloweenShopDelay = 1.2
+
+local function getHalloweenShopData()
+    local replica = DataController:GetReplica()
+
+    if not replica or type(replica.Data) ~= "table" then
+        return nil
+    end
+
+    return replica.Data
+end
+
+local function buyHalloweenShopItem(item)
+    local ok, result = pcall(function()
+        return HalloweenShopController:Purchase(item.Id)
+    end)
+
+    if not ok or type(result) ~= "table" then
+        return false, nil
+    end
+
+    if result.Success then
+        task.wait(AutoBuyHalloweenShopDelay)
+        return true, result.Reason
+    end
+
+    return false, result.Reason
+end
+
+local function runAutoBuyHalloweenShop(token)
+    if not HalloweenShopConfig.IsOpen() then
+        return
+    end
+
+    local limited = {}
+    local unlimited = {}
+
+    for _, item in ipairs(HalloweenShopConfig.Items) do
+        if item.Limit ~= nil then
+            table.insert(limited, item)
+        else
+            table.insert(unlimited, item)
+        end
+    end
+
+    for _, item in ipairs(limited) do
+        if not AutoBuyHalloweenShopRunning
+            or token ~= AutoBuyHalloweenShopToken
+        then
+            return
+        end
+
+        while AutoBuyHalloweenShopRunning
+            and token == AutoBuyHalloweenShopToken
+            and HalloweenShopConfig.IsOpen()
+        do
+            local data = getHalloweenShopData()
+
+            if not data then
+                task.wait(1)
+                continue
+            end
+
+            local candy = HalloweenShopConfig.GetCandy(data)
+
+            if type(candy) ~= "number" or candy <= 0 then
+                return
+            end
+
+            if not HalloweenShopConfig.IsListed(data, item) then
+                break
+            end
+
+            local remaining =
+                HalloweenShopConfig.GetRemaining(data, item)
+
+            if remaining == nil or remaining <= 0 then
+                break
+            end
+
+            if candy < item.Price then
+                break
+            end
+
+            local success, reason = buyHalloweenShopItem(item)
+
+            if not success then
+                if reason == "NotEnoughCandy"
+                    or reason == "SoldOut"
+                    or reason == "EventClosed"
+                    or reason == "RateLimited"
+                then
+                    task.wait(1)
+                end
+
+                break
+            end
+        end
+    end
+
+    for _, item in ipairs(unlimited) do
+        if not AutoBuyHalloweenShopRunning
+            or token ~= AutoBuyHalloweenShopToken
+        then
+            return
+        end
+
+        while AutoBuyHalloweenShopRunning
+            and token == AutoBuyHalloweenShopToken
+            and HalloweenShopConfig.IsOpen()
+        do
+            local data = getHalloweenShopData()
+
+            if not data then
+                task.wait(1)
+                continue
+            end
+
+            local candy = HalloweenShopConfig.GetCandy(data)
+
+            if type(candy) ~= "number" or candy <= 0 then
+                return
+            end
+
+            if not HalloweenShopConfig.IsListed(data, item) then
+                break
+            end
+
+            if candy < item.Price then
+                break
+            end
+
+            local success, reason = buyHalloweenShopItem(item)
+
+            if success then
+                continue
+            end
+
+            if reason == "NotEnoughCandy"
+                or reason == "SoldOut"
+                or reason == "EventClosed"
+                or reason == "RateLimited"
+            then
+                task.wait(1)
+            end
+
+            break
+        end
+    end
+end
+
+HalloweenTab:CreateToggle({
+    name = "Auto Buy Halloween Shop",
+    description = "Buy limited-stock items first, then unlimited items",
+    value = OTC.Config.AutoBuyHalloweenShop,
+    callback = function(value)
+        OTC.Config.AutoBuyHalloweenShop = value
+        AutoBuyHalloweenShopRunning = value
+        AutoBuyHalloweenShopToken += 1
+
+        if value then
+            local token = AutoBuyHalloweenShopToken
+
+            task.spawn(function()
+                local ok = pcall(function()
+                    runAutoBuyHalloweenShop(token)
+                end)
+
+                if token == AutoBuyHalloweenShopToken then
+                    AutoBuyHalloweenShopRunning = false
+                    OTC.Config.AutoBuyHalloweenShop = false
+                end
+            end)
+        end
+    end
 })
