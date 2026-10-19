@@ -2953,6 +2953,7 @@ OTC.Config.SelectedEnchantPet = ""
 OTC.Config.SelectedEnchantSlot = 1
 OTC.Config.SelectedEnchantTypes = {}
 
+local EnchantPetDropdown
 local EnchantPetOptions = {}
 local EnchantPetIds = {}
 local SelectedEnchantPetId = nil
@@ -2960,9 +2961,16 @@ local SelectedEnchantTypes = {}
 local SelectedEnchantSlot = 1
 local AutoEnchantToken = 0
 
-local function GetEnchantData()
+local function GetEnchantPetData()
     local replica = DataController:GetReplica()
-    return replica and replica.Data
+    local data = replica and replica.Data
+    local pets = data and data.Pets
+
+    if not pets or type(pets.Owned) ~= "table" then
+        return nil, nil
+    end
+
+    return data, pets
 end
 
 local function GetCurrentEnchant(pet)
@@ -2972,29 +2980,61 @@ local function GetCurrentEnchant(pet)
     return first .. " / " .. second
 end
 
+local function DebugEnchantPet(petId)
+    local _, pets = GetEnchantPetData()
+    local pet = pets and pets.Owned and pets.Owned[petId]
+
+    if not pet then
+        warn("[Enchant Debug] Pet not found:", tostring(petId))
+        return
+    end
+
+    local function dump(value, prefix, depth)
+        if depth > 5 then
+            return
+        end
+
+        for key, child in pairs(value) do
+            local name = prefix .. "." .. tostring(key)
+
+            if type(child) == "table" then
+                print("[Enchant Debug]", name, "= table")
+                dump(child, name, depth + 1)
+            else
+                print("[Enchant Debug]", name, "=", tostring(child))
+            end
+        end
+    end
+
+    print("[Enchant Debug] Selected UUID:", tostring(petId))
+    dump(pet, "Pet", 0)
+end
+
 local function RefreshEnchantPets()
     table.clear(EnchantPetOptions)
     table.clear(EnchantPetIds)
 
-    local data = GetEnchantData()
-    if not data or not data.Pets then
+    local data, pets = GetEnchantPetData()
+
+    if not pets then
+        warn("[Enchant Debug] Pet data unavailable")
         return
     end
 
     local equipped = {}
 
-    for _, petId in ipairs(data.Pets.Equipped or {}) do
+    for _, petId in ipairs(pets.Equipped or {}) do
         equipped[petId] = true
     end
 
-    for petId, pet in pairs(data.Pets.Owned or {}) do
+    for petId, pet in pairs(pets.Owned) do
         if type(pet) == "table" then
+            local isEquipped = equipped[petId] or pet.Equip == true
             local label = string.format(
-                "%s [%s] %s | %s",
-                tostring(pet.Name or "Pet"),
+                "%s [%s] [%s]",
+                tostring(pet.Nickname or pet.Name or "Pet"),
                 tostring(petId),
-                equipped[petId] and "[Equipped]" or "",
-                GetCurrentEnchant(pet)
+                isEquipped and "Equipped" or "Unequipped"
             )
 
             table.insert(EnchantPetOptions, label)
@@ -3003,7 +3043,13 @@ local function RefreshEnchantPets()
     end
 
     table.sort(EnchantPetOptions)
+
+    if EnchantPetDropdown then
+        EnchantPetDropdown:Refresh(EnchantPetOptions, false)
+    end
 end
+
+RefreshEnchantPets()
 
 local EnchantTypeOptions = {}
 
@@ -3103,16 +3149,31 @@ PetsTab:CreateDropdown({
     end
 })
 
-RefreshEnchantPets()
+EnchantPetDropdown = PetsTab:CreateDropdown({
+    Name = "Select Pet",
+    Options = EnchantPetOptions,
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback = function(value)
+        if type(value) == "table" then
+            value = value[1]
+        end
 
-PetsTab:CreateDropdown({
-    name = "Select Pet",
-    description = "Pets are identified by UUID",
-    options = EnchantPetOptions,
-    value = "",
-    callback = function(value)
+        print("[Enchant Debug] Callback value:", tostring(value))
+        print("[Enchant Debug] Value type:", typeof(value))
+
         SelectedEnchantPetId = EnchantPetIds[value]
-        OTC.Config.SelectedEnchantPet = SelectedEnchantPetId or ""
+
+        print(
+            "[Enchant Debug] Selected UUID:",
+            tostring(SelectedEnchantPetId)
+        )
+
+        if SelectedEnchantPetId then
+            DebugEnchantPet(SelectedEnchantPetId)
+        else
+            warn("[Enchant Debug] UUID mapping failed")
+        end
     end
 })
 
@@ -5412,7 +5473,7 @@ local AutoBuyHalloweenShopRunning = false
 local AutoBuyHalloweenShopToken = 0
 local AutoBuyHalloweenShopDelay = 1.2
 
-local function getHalloweenShopData()
+function getHalloweenShopData()
     local replica = DataController:GetReplica()
 
     if not replica or type(replica.Data) ~= "table" then
@@ -5422,7 +5483,7 @@ local function getHalloweenShopData()
     return replica.Data
 end
 
-local function buyHalloweenShopItem(item)
+function buyHalloweenShopItem(item)
     local ok, result = pcall(function()
         return HalloweenShopController:Purchase(item.Id)
     end)
@@ -5439,7 +5500,7 @@ local function buyHalloweenShopItem(item)
     return false, result.Reason
 end
 
-local function runAutoBuyHalloweenShop(token)
+function runAutoBuyHalloweenShop(token)
     if not HalloweenShopConfig.IsOpen() then
         return
     end
