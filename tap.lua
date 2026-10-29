@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
@@ -207,6 +208,27 @@ local EnchantConfig = require(
     ReplicatedStorage.Shared.Pets.EnchantConfig
 )
 
+local PetVisualConfig = require(
+    ReplicatedStorage
+        :WaitForChild("Shared")
+        :WaitForChild("Pets")
+        :WaitForChild("PetVisualConfig")
+)
+
+local PetOdds = require(
+    ReplicatedStorage
+        :WaitForChild("Shared")
+        :WaitForChild("Pets")
+        :WaitForChild("PetOdds")
+)
+
+local TrickOrTreatConfig = require(
+    ReplicatedStorage
+        :WaitForChild("Shared")
+        :WaitForChild("Game")
+        :WaitForChild("TrickOrTreatConfig")
+)
+
 local jumpUpgrade = assert(
     PhysicalUpgradeConfig.Get("+1 Jump"),
     "Double Jump upgrade not found"
@@ -260,6 +282,12 @@ local TapService = Comm.ClientComm.new(
     ReplicatedStorage.RemoteServices,
     false,
     "TapService"
+):BuildObject()
+
+local EnchantService = Comm.ClientComm.new(
+    ReplicatedStorage.RemoteServices,
+    false,
+    "EnchantService"
 ):BuildObject()
 
 local TrickOrTreatService = Comm.ClientComm.new(
@@ -339,6 +367,7 @@ local Window = Rayfield:CreateWindow({
     name = "OTC・Tap Simulator: Reborn",
     subtitle = "by aerlro",
     sidebarLayout = true,
+    showName = "OTC",
     icon = 116094782851554,
 
     theme = {
@@ -416,7 +445,7 @@ local Window = Rayfield:CreateWindow({
     configuration = {
         autoSave = true,
         autoLoad = true,
-        fileName = "OTC-TapSimulator",
+        fileName = "TapSimulator",
         customFolder = "OTC",
     },
 })
@@ -454,6 +483,11 @@ local MinigamesTab = Window:CreateTab({
 local HalloweenTab = Window:CreateTab({
     name = "Halloween",
     icon = "pumpkin",
+})
+
+local WebhookTab = Window:CreateTab({
+    name = "Webhook",
+    icon = "webhook",
 })
 
 local HomeStartTime = os.clock()
@@ -620,8 +654,9 @@ generateRebirthOptions(maxIndex)
 AutoTab:CreateToggle({
     name = "Auto Tap",
     description = "Automatically send tap requests.",
+    flag = "AutoTap",
     value = false,
-    
+
     callback = function(value)
         OTC.Config.AutoTap = value
 
@@ -631,22 +666,15 @@ AutoTab:CreateToggle({
 
         task.spawn(function()
             while OTC.Config.AutoTap do
-                local sequence = OTC.Config.ClientSequence
-
                 local success, err = pcall(function()
-                    TapEvent:FireServer({
-                        Auto = false,
-                        ClientSequence = sequence,
-                    })
+                    TapController:Tap()
                 end)
 
-                if success then
-                    OTC.Config.ClientSequence += 1
-                else
-                    warn("[OTC] Tap error:", err)
+                if not success then
+                    warn("[OTC] Auto Tap error:", err)
                 end
 
-                task.wait(OTC.Config.TapDelay)
+                task.wait(OTC.Config.TapDelay or 0.1)
             end
         end)
     end,
@@ -654,6 +682,8 @@ AutoTab:CreateToggle({
 
 AutoTab:CreateDropdown({
     name = "Rebirth Type",
+    description = "Choose the rebirth type option.",
+    flag = "RebirthType",
     options = RebirthOptions,
     default = RebirthOptions[1],
 
@@ -669,6 +699,7 @@ AutoTab:CreateDropdown({
 AutoTab:CreateToggle({
     name = "Auto Rebirth",
     description = "Automatically request the selected rebirth.",
+    flag = "AutoRebirth",
     value = false,
     
     callback = function(value)
@@ -698,92 +729,107 @@ AutoTab:CreateToggle({
     end,
 })
 
-AutoTab:CreateToggle({
-    name = "Auto Gem Upgrade",
-    description = "Automatically purchase all available gem upgrades.",
-    value = false,
-    
-    callback = function(value)
-        OTC.Config.AutoGemUpgrade = value
+local AntiAFKEnabled = false
+local AntiAFKConnection = nil
+local AntiAFKToken = 0
 
-        if not value then
+HomeTab:CreateToggle({
+    Name = "Anti AFK",
+    CurrentValue = false,
+    Flag = "AntiAFK",
+    Description = "Anti AFK.",
+    Callback = function(Value)
+        AntiAFKEnabled = Value
+        AntiAFKToken += 1
+
+        local CurrentToken = AntiAFKToken
+
+        if AntiAFKConnection then
+            AntiAFKConnection:Disconnect()
+            AntiAFKConnection = nil
+        end
+
+        if not Value then
             return
         end
 
+        local Players = game:GetService("Players")
+        local VirtualUser = game:GetService("VirtualUser")
+        local Player = Players.LocalPlayer
+
+        AntiAFKConnection = Player.Idled:Connect(function()
+            if not AntiAFKEnabled then
+                return
+            end
+
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+        end)
+
         task.spawn(function()
-            while OTC.Config.AutoGemUpgrade do
-                for _, upgradeName in ipairs(UpgradeConfig.Order) do
-                    if not OTC.Config.AutoGemUpgrade then
-                        break
-                    end
+            while AntiAFKEnabled and AntiAFKToken == CurrentToken do
+                task.wait(300)
 
-                    local definition = UpgradeConfig.Get(upgradeName)
-
-                    if definition and not definition.SkillTreeNode then
-                        local success, err = pcall(function()
-                            UpgradeController:Purchase(upgradeName)
-                        end)
-
-                        if not success then
-                            warn(
-                                "[OTC] Gem Upgrade error:",
-                                upgradeName,
-                                err
-                            )
-                        end
-
-                        task.wait(OTC.Config.GemUpgradeDelay)
-                    end
+                if not AntiAFKEnabled or AntiAFKToken ~= CurrentToken then
+                    break
                 end
 
-                task.wait(OTC.Config.GemUpgradeDelay)
+                local Character = Player.Character
+                local Humanoid = Character
+                    and Character:FindFirstChildOfClass("Humanoid")
+
+                if Humanoid and Humanoid.Health > 0 then
+                    Humanoid.Jump = true
+                end
+
+                pcall(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton1(Vector2.new(0, 0))
+                end)
             end
         end)
-    end,
+    end
 })
 
 local SkillTreeNodes = {}
 local SkillTreeNodeNames = {}
 
-local SkillTreeDirections = {
-    "N",
-    "S",
-    "NE",
-    "NW",
-    "SE",
-    "SW",
-}
-
-function collectSkillTreeNodes(node)
-    if type(node) ~= "table" then
+function collectSkillTreeNodes(node, visited)
+    if type(node) ~= "table" or visited[node] then
         return
     end
 
-    if node.Name and not SkillTreeNodeNames[node.Name] then
+    visited[node] = true
+
+    if type(node.Name) == "string"
+        and not SkillTreeNodeNames[node.Name] then
         SkillTreeNodeNames[node.Name] = true
         table.insert(SkillTreeNodes, node.Name)
     end
 
-    for _, direction in ipairs(SkillTreeDirections) do
-        local child = node[direction]
-
-        if type(child) == "table" then
-            collectSkillTreeNodes(child)
+    for key, child in pairs(node) do
+        if key ~= "Name" and type(child) == "table" then
+            collectSkillTreeNodes(child, visited)
         end
     end
 end
 
+local visitedSkillTreeTables = {}
+
 for _, tree in pairs(SkillTreeConfig) do
-    collectSkillTreeNodes(tree)
+    collectSkillTreeNodes(tree, visitedSkillTreeTables)
 end
 
 table.sort(SkillTreeNodes)
 
 AutoTab:CreateToggle({
-    name = "Auto Unlock Skill Tree",
+    name = "Auto Upgrade Gems",
     description = "Automatically unlock available Skill Tree nodes.",
+    flag = "AutoUnlockSkillTree",
     value = false,
-    
+
     callback = function(value)
         OTC.Config.AutoUnlockSkillTree = value
 
@@ -821,7 +867,8 @@ AutoTab:CreateToggle({
                     task.wait(OTC.Config.SkillTreeDelay or 0.5)
                 end
 
-                if not unlockedSomething then
+                if not unlockedSomething
+                    and OTC.Config.AutoUnlockSkillTree then
                     task.wait(0.5)
                 end
             end
@@ -832,6 +879,7 @@ AutoTab:CreateToggle({
 AutoTab:CreateToggle({
     name = "Auto Claim Quests",
     description = "Automatically claim completed quests.",
+    flag = "AutoClaimQuests",
     value = false,
 
     callback = function(value)
@@ -981,11 +1029,18 @@ AutoTab:CreateToggle({
 local AutoBuyDoubleJumps = false
 local DoubleJumpSession = 0
 
+local DoubleJumpPosition = CFrame.new(
+    -98.6733017, -516.033081, -1679.99146,
+    0.963639021, 0, 0.267207414,
+    0, 1, 0,
+    -0.267207414, 0, 0.963639021
+)
+
 AutoTab:CreateToggle({
     name = "Auto Buy Double Jumps",
     flag = "AutoBuyDoubleJumps",
     value = false,
-    description = "Automatically purchases the next available +1 Jump upgrade.",
+    description = "Automatically teleports to the upgrade and purchases the next available +1 Jump upgrade.",
     callback = function(value)
         AutoBuyDoubleJumps = value
         DoubleJumpSession += 1
@@ -1001,6 +1056,14 @@ AutoTab:CreateToggle({
                 and DoubleJumpSession == session do
 
                 local success, err = pcall(function()
+                    local character = LocalPlayer.Character
+                    local root = character
+                        and character:FindFirstChild("HumanoidRootPart")
+
+                    if root then
+                        root.CFrame = DoubleJumpPosition
+                    end
+
                     local replica = DataController:GetReplica()
                     local data = replica and replica.Data
 
@@ -1156,6 +1219,8 @@ end
 
 AutoTab:CreateToggle({
     Name = "Auto Collect Shiny Stars",
+    Description = "Enable or disable auto collect shiny stars.",
+    Flag = "AutoCollectShinyStars",
     CurrentValue = false,
     Callback = function(Value)
         OTC.Config.AutoCollectShinyStars = Value
@@ -1233,6 +1298,50 @@ function GetClickerChestPosition(Model)
     return nil
 end
 
+function GetCharacterRoot()
+    local Character = LocalPlayer.Character
+    local Humanoid = Character
+        and Character:FindFirstChildOfClass("Humanoid")
+    local Root = Character
+        and Character:FindFirstChild("HumanoidRootPart")
+
+    if not Character or not Humanoid or Humanoid.Health <= 0 or not Root then
+        return nil, nil
+    end
+
+    return Character, Root
+end
+
+function TeleportToPosition(Position)
+    if not OTC.Config.AutoClaimClickerChests then
+        return false
+    end
+
+    local Character, Root = GetCharacterRoot()
+
+    if not Character or not Root then
+        return false
+    end
+
+    local Target = CFrame.new(Position + Vector3.new(0, 5, 0))
+
+    local Success = pcall(function()
+        Root.CFrame = Target
+        Character:PivotTo(Target)
+    end)
+
+    if not Success then
+        return false
+    end
+
+    task.wait(0.3)
+
+    Character, Root = GetCharacterRoot()
+
+    return Root ~= nil
+        and (Root.Position - Position).Magnitude <= 15
+end
+
 function TeleportToClickerChest(Model)
     if not OTC.Config.AutoClaimClickerChests then
         return false
@@ -1248,16 +1357,16 @@ function TeleportToClickerChest(Model)
         return false
     end
 
-    local Character = LocalPlayer.Character
-    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+    local Offset = OTC.Config.ClickerChestOffset or 5
 
-    if not Character or not Humanoid or Humanoid.Health <= 0 or not Root then
+    local Character, Root = GetCharacterRoot()
+
+    if not Character or not Root then
         return false
     end
 
     local Target = CFrame.new(
-        Position + Vector3.new(0, OTC.Config.ClickerChestOffset, 0)
+        Position + Vector3.new(0, Offset, 0)
     )
 
     local Success = pcall(function()
@@ -1269,16 +1378,12 @@ function TeleportToClickerChest(Model)
         return false
     end
 
-    task.wait(0.2)
+    task.wait(0.3)
 
-    Character = LocalPlayer.Character
-    Root = Character and Character:FindFirstChild("HumanoidRootPart")
+    Character, Root = GetCharacterRoot()
 
-    if not Root then
-        return false
-    end
-
-    return (Root.Position - Position).Magnitude <= 15
+    return Root ~= nil
+        and (Root.Position - Position).Magnitude <= 15
 end
 
 function ProcessClickerChest(Model)
@@ -1289,8 +1394,6 @@ function ProcessClickerChest(Model)
     CurrentClickerChest = Model
 
     while OTC.Config.AutoClaimClickerChests do
-        task.wait(OTC.Config.ClickerChestDelay)
-
         if not Model.Parent then
             break
         end
@@ -1304,11 +1407,9 @@ function ProcessClickerChest(Model)
             break
         end
 
-        local Character = LocalPlayer.Character
-        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-        local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+        local Character, Root = GetCharacterRoot()
 
-        if not Character or not Humanoid or Humanoid.Health <= 0 or not Root then
+        if not Character or not Root then
             break
         end
 
@@ -1323,10 +1424,52 @@ function ProcessClickerChest(Model)
                 break
             end
         end
+
+        task.wait(OTC.Config.ClickerChestDelay or 0.5)
     end
 
     if CurrentClickerChest == Model then
         CurrentClickerChest = nil
+    end
+end
+
+function GetOrderedIslandLandings()
+    local Islands = {}
+
+    for IslandName, Landing in pairs(IslandLandings) do
+        if type(Landing) == "table"
+            and typeof(Landing.Position) == "Vector3" then
+            table.insert(Islands, {
+                Name = IslandName,
+                Position = Landing.Position,
+            })
+        end
+    end
+
+    table.sort(Islands, function(A, B)
+        return A.Name < B.Name
+    end)
+
+    return Islands
+end
+
+function ProcessClickerChestsOnIsland(Island)
+    if not TeleportToPosition(Island.Position) then
+        return
+    end
+
+    task.wait(0.5)
+
+    local Chests = GetClickerChests()
+
+    for _, Model in ipairs(Chests) do
+        if not OTC.Config.AutoClaimClickerChests then
+            break
+        end
+
+        if Model.Parent then
+            pcall(ProcessClickerChest, Model)
+        end
     end
 end
 
@@ -1339,19 +1482,19 @@ function StartClickerChestWorker()
 
     task.spawn(function()
         while OTC.Config.AutoClaimClickerChests do
-            local Chests = GetClickerChests()
+            local Islands = GetOrderedIslandLandings()
 
-            for _, Model in ipairs(Chests) do
+            for _, Island in ipairs(Islands) do
                 if not OTC.Config.AutoClaimClickerChests then
                     break
                 end
 
-                if Model ~= CurrentClickerChest then
-                    pcall(ProcessClickerChest, Model)
-                end
+                ProcessClickerChestsOnIsland(Island)
+
+                task.wait(0.5)
             end
 
-            task.wait(0.2)
+            task.wait(1)
         end
 
         CurrentClickerChest = nil
@@ -1361,6 +1504,8 @@ end
 
 AutoTab:CreateToggle({
     Name = "Auto Claim Clicker Chests",
+    Description = "Enable or disable auto claim clicker chests.",
+    Flag = "AutoClaimClickerChests",
     CurrentValue = false,
     Callback = function(Value)
         OTC.Config.AutoClaimClickerChests = Value
@@ -1371,20 +1516,36 @@ AutoTab:CreateToggle({
     end,
 })
 
-local IslandAttackOrder = {
-    "SkyIsland",
-    "Autumn",
-    "Mushroom",
-    "Desert",
-    "CrystalCave",
-    "ShadowRelm"
-}
-
 local IslandAttackToken = 0
 
 function getIslandAttackRoot()
     local character = LocalPlayer.Character
     return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+function GetIslandAttackOrder(spotsFolder)
+    local islands = {}
+
+    for id, position in pairs(spotsFolder:GetAttributes()) do
+        if type(id) == "string" and typeof(position) == "Vector3" then
+            local success, spot = pcall(function()
+                return IslandConfig.Get(id)
+            end)
+
+            if success and type(spot) == "table" then
+                table.insert(islands, {
+                    Id = id,
+                    Spot = spot,
+                })
+            end
+        end
+    end
+
+    table.sort(islands, function(a, b)
+        return a.Id < b.Id
+    end)
+
+    return islands
 end
 
 function getIslandAttackTarget(typeName)
@@ -1435,45 +1596,25 @@ function runIslandAttack(token)
     while OTC.Config.AutoAttackIslandBreakables
         and IslandAttackToken == token do
 
-        for _, id in ipairs(IslandAttackOrder) do
+        local islands = GetIslandAttackOrder(spotsFolder)
+
+        for _, island in ipairs(islands) do
             if not OTC.Config.AutoAttackIslandBreakables
                 or IslandAttackToken ~= token then
                 break
             end
 
-            local spot = IslandConfig.Get(id)
+            local id = island.Id
+            local spot = island.Spot
 
-            if spot then
-                local replica = DataController:GetReplica()
-                local data = replica and replica.Data
+            local replica = DataController:GetReplica()
+            local data = replica and replica.Data
 
-                if data and IslandConfig.IsUnlocked(data, spot) then
-                    local spotPosition
+            if data and IslandConfig.IsUnlocked(data, spot) then
+                local spotPosition = spotsFolder:GetAttribute(id)
 
-                    repeat
-                        spotPosition = spotsFolder:GetAttribute(id)
-
-                        if typeof(spotPosition) ~= "Vector3" then
-                            task.wait(0.5)
-                        end
-                    until typeof(spotPosition) == "Vector3"
-                        or not OTC.Config.AutoAttackIslandBreakables
-                        or IslandAttackToken ~= token
-
-                    if not OTC.Config.AutoAttackIslandBreakables
-                        or IslandAttackToken ~= token then
-                        break
-                    end
-
+                if typeof(spotPosition) == "Vector3" then
                     local target = getIslandAttackTarget(spot.Type)
-
-                    if not target then
-                        local root = getIslandAttackRoot()
-
-                        if root and (root.Position - spotPosition).Magnitude > 6 then
-                            root.CFrame = CFrame.new(spotPosition + Vector3.new(0, 3, 0))
-                        end
-                    end
 
                     while OTC.Config.AutoAttackIslandBreakables
                         and IslandAttackToken == token
@@ -1482,16 +1623,21 @@ function runIslandAttack(token)
                         local root = getIslandAttackRoot()
 
                         if root and (root.Position - spotPosition).Magnitude > 6 then
-                            root.CFrame = CFrame.new(spotPosition + Vector3.new(0, 3, 0))
+                            root.CFrame = CFrame.new(
+                                spotPosition + Vector3.new(0, 3, 0)
+                            )
                         end
 
                         local currentReplica = DataController:GetReplica()
                         local currentData = currentReplica and currentReplica.Data
-                        local remaining = 0
 
                         if currentData then
-                            local readyAt = IslandConfig.GetReadyAt(currentData, id)
-                            remaining = math.max(
+                            local readyAt = IslandConfig.GetReadyAt(
+                                currentData,
+                                id
+                            )
+
+                            local remaining = math.max(
                                 0,
                                 readyAt - Workspace:GetServerTimeNow()
                             )
@@ -1531,7 +1677,7 @@ function runIslandAttack(token)
                         pcall(function()
                             TapService.TapRequested:Fire({
                                 Auto = false,
-                                ClientSequence = OTC.Config.ClientSequence
+                                ClientSequence = OTC.Config.ClientSequence,
                             })
                         end)
 
@@ -1549,7 +1695,8 @@ end
 
 AutoTab:CreateToggle({
     name = "Auto Attack Island Breakables",
-    value = OTC.Config.AutoAttackIslandBreakables,
+    description = "Enable or disable auto attack island breakables.",
+    value = OTC.Config.AutoAttackIslandBreakables or false,
     flag = "AutoAttackIslandBreakables",
     callback = function(value)
         OTC.Config.AutoAttackIslandBreakables = value
@@ -1563,12 +1710,16 @@ AutoTab:CreateToggle({
                     runIslandAttack(token)
                 end)
 
-                if not ok and IslandAttackToken == token then
-                    OTC.Config.AutoAttackIslandBreakables = false
+                if not ok then
+                    warn("[OTC] Island attack error:", err)
+
+                    if IslandAttackToken == token then
+                        OTC.Config.AutoAttackIslandBreakables = false
+                    end
                 end
             end)
         end
-    end
+    end,
 })
 
 local AutoClaimChestsRunning = false
@@ -1595,6 +1746,11 @@ function getReadyTapChest(id)
     return nil
 end
 
+local ChestIslandMap = {
+    SkyIsland = "Sky Island",
+    Desert = "Desert",
+}
+
 function autoClaimChests()
     local chestIds = {"SkyIsland", "Desert"}
 
@@ -1604,45 +1760,77 @@ function autoClaimChests()
                 break
             end
 
-            local chest = getReadyTapChest(id)
+            local islandName = ChestIslandMap[id]
+            local landing = islandName and IslandLandings[islandName]
 
-            if chest then
-                local front = chest:GetAttribute(
-                    TapChestConfig.Attributes.Front
-                )
-                local size = chest:GetAttribute(
-                    TapChestConfig.Attributes.Size
-                )
-
+            if landing and typeof(landing.Position) == "Vector3" then
                 local character = LocalPlayer.Character
                 local root = character
                     and character:FindFirstChild("HumanoidRootPart")
 
-                if root and typeof(front) == "CFrame"
-                    and typeof(size) == "Vector3" then
+                if root then
+                    root.CFrame = CFrame.new(
+                        landing.Position + Vector3.new(0, 5, 0)
+                    )
 
-                    local anchorPosition =
-                        front.Position
-                        - Vector3.new(0, size.Y * 0.5, 0)
-                        + front.LookVector
-                            * (size.Z * 0.5 + TapChestConfig.PromptInset)
-                        + Vector3.new(0, TapChestConfig.PromptHeight, 0)
+                    task.wait(1.5)
 
-                    if (root.Position - anchorPosition).Magnitude
-                        > TapChestConfig.LeaveDistance then
-                        root.CFrame = CFrame.lookAt(
-                            anchorPosition - front.LookVector * 2,
-                            anchorPosition
-                        )
+                    if not OTC.Config.AutoClaimChests then
+                        break
                     end
 
-                    task.wait(0.5)
+                    local chest = getReadyTapChest(id)
 
-                    if OTC.Config.AutoClaimChests
-                        and chest:IsDescendantOf(Workspace) then
-                        TapChestController:Interact(chest)
+                    if chest then
+                        local front = chest:GetAttribute(
+                            TapChestConfig.Attributes.Front
+                        )
 
-                        task.wait(12)
+                        local size = chest:GetAttribute(
+                            TapChestConfig.Attributes.Size
+                        )
+
+                        character = LocalPlayer.Character
+                        root = character
+                            and character:FindFirstChild("HumanoidRootPart")
+
+                        if root
+                            and typeof(front) == "CFrame"
+                            and typeof(size) == "Vector3" then
+
+                            local anchorPosition =
+                                front.Position
+                                - Vector3.new(0, size.Y * 0.5, 0)
+                                + front.LookVector
+                                    * (
+                                        size.Z * 0.5
+                                        + TapChestConfig.PromptInset
+                                    )
+                                + Vector3.new(
+                                    0,
+                                    TapChestConfig.PromptHeight,
+                                    0
+                                )
+
+                            if (
+                                root.Position - anchorPosition
+                            ).Magnitude > TapChestConfig.LeaveDistance then
+                                root.CFrame = CFrame.lookAt(
+                                    anchorPosition - front.LookVector * 2,
+                                    anchorPosition
+                                )
+                            end
+
+                            task.wait(0.5)
+
+                            if OTC.Config.AutoClaimChests
+                                and chest:IsDescendantOf(Workspace) then
+
+                                TapChestController:Interact(chest)
+
+                                task.wait(1)
+                            end
+                        end
                     end
                 end
             end
@@ -1658,6 +1846,8 @@ end
 
 AutoTab:CreateToggle({
     Name = "Auto Claim Chests",
+    Description = "Enable or disable auto claim chests.",
+    Flag = "AutoClaimChests",
     CurrentValue = OTC.Config.AutoClaimChests,
     Callback = function(value)
         OTC.Config.AutoClaimChests = value
@@ -1694,6 +1884,7 @@ end
 WorldTab:CreateDropdown({
     name = "Islands",
     description = "Select an island to teleport to.",
+    flag = "Islands",
     options = IslandOptions,
     value = "None",
     callback = function(value)
@@ -1722,17 +1913,6 @@ WorldTab:CreateDropdown({
 
 local IslandOrder = {}
 
-local IslandPriority = {
-    ["Sky Island"] = 1,
-    ["Sky Islands"] = 1,
-    Autumn = 2,
-    Mushroom = 3,
-    Desert = 4,
-    ["Crystal Cave"] = 5,
-    ["Shadow Realm"] = 6,
-    Volcano = 7,
-}
-
 for islandName, landing in pairs(IslandLandings) do
     if type(landing) == "table"
         and typeof(landing.Position) == "Vector3" then
@@ -1740,16 +1920,7 @@ for islandName, landing in pairs(IslandLandings) do
     end
 end
 
-table.sort(IslandOrder, function(a, b)
-    local orderA = IslandPriority[a] or math.huge
-    local orderB = IslandPriority[b] or math.huge
-
-    if orderA == orderB then
-        return a < b
-    end
-
-    return orderA < orderB
-end)
+table.sort(IslandOrder)
 
 local UnlockEveryIslandEnabled = false
 local UnlockEveryIslandRunning = false
@@ -1817,7 +1988,7 @@ function unlockVisitIsland(islandName)
         local tween = TweenService:Create(
             root,
             TweenInfo.new(duration, Enum.EasingStyle.Linear),
-            {CFrame = CFrame.new(target)}
+            { CFrame = CFrame.new(target) }
         )
 
         tween:Play()
@@ -1881,7 +2052,7 @@ WorldTab:CreateToggle({
         UnlockEveryIslandRunning = true
 
         task.spawn(function()
-            local ok = pcall(function()
+            pcall(function()
                 for _, islandName in ipairs(IslandOrder) do
                     if not UnlockEveryIslandEnabled then
                         break
@@ -1938,7 +2109,13 @@ function getEquippedIds(petData)
     return equippedIds
 end
 
-local function RefreshPets()
+function HasMutation(pet)
+    return pet.Mutation ~= nil
+        and pet.Mutation ~= ""
+        and pet.Mutation ~= "None"
+end
+
+function RefreshPets()
     if IsRefreshingPets then
         return
     end
@@ -1947,12 +2124,8 @@ local function RefreshPets()
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
-
-        if not replica then
-            return
-        end
-
-        local petData = replica.Data
+        local petData = replica
+            and replica.Data
             and replica.Data.Pets
 
         local pets = petData and petData.Owned
@@ -1967,11 +2140,7 @@ local function RefreshPets()
         for id, pet in pairs(pets) do
             if type(pet) == "table"
                 and type(pet.Name) == "string"
-                and pet.Tier == "Normal"
-                and (
-                    OTC.Config.IncludeShinyPets
-                    or pet.Mutation ~= "Shiny"
-                ) then
+                and pet.Tier == "Normal" then
 
                 local petId = pet.Id or id
                 local group = groups[pet.Name]
@@ -1979,6 +2148,7 @@ local function RefreshPets()
                 if not group then
                     group = {
                         Count = 0,
+                        MutatedCount = 0,
                         EquippedCount = 0,
                     }
 
@@ -1986,6 +2156,10 @@ local function RefreshPets()
                 end
 
                 group.Count += 1
+
+                if HasMutation(pet) then
+                    group.MutatedCount += 1
+                end
 
                 if equippedIds[petId] then
                     group.EquippedCount += 1
@@ -2005,12 +2179,16 @@ local function RefreshPets()
 
         for _, name in ipairs(names) do
             local group = groups[name]
-            local label
+
+            local label = string.format(
+                "%s [x%d | Mutations: %d]",
+                name,
+                group.Count,
+                group.MutatedCount
+            )
 
             if group.EquippedCount > 0 then
-                label = name .. " [Equipped, x" .. tostring(group.Count) .. "]"
-            else
-                label = name .. " [x" .. tostring(group.Count) .. "]"
+                label ..= " [Equipped]"
             end
 
             table.insert(newOptions, label)
@@ -2051,24 +2229,24 @@ local function RefreshPets()
     end
 end
 
-local function TeleportToGoldenMachine()
+function TeleportToGoldenMachine()
     local character = LocalPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local root = character
+        and character:FindFirstChild("HumanoidRootPart")
 
     if not root then
         return false
     end
 
     root.CFrame = CFrame.new(
-        20.8617554, -508.079041, -1886.2561,
-        -1, 0, 0,
+        14.4709997, -515.968872, -1885.64685,
+        0, 0, 1,
         0, 1, 0,
-        0, 0, -1
+        -1, 0, 0
     )
 
     return true
 end
-
 
 PetsTab:CreateSection({
     name = "▶ Golden"
@@ -2076,7 +2254,7 @@ PetsTab:CreateSection({
 
 PetDropdown = PetsTab:CreateDropdown({
     name = "Pets",
-    description = "Live inventory of Normal pets and equipped status.",
+    description = "Live inventory with mutation counts and equipped status.",
     options = PetOptions,
     value = "None",
     flag = "GoldenPetSelection",
@@ -2092,10 +2270,24 @@ PetDropdown = PetsTab:CreateDropdown({
         if value == "None" or value == "No pets" then
             SelectedPetName = ""
             OTC.Config.SelectedPet = "None"
-        else
-            SelectedPetName = GetPetName(value)
-            OTC.Config.SelectedPet = value
+
+            Window:Notify({
+                Title = "Golden Pets",
+                Content = "No pet selected.",
+                Duration = 3,
+            })
+
+            return
         end
+
+        SelectedPetName = GetPetName(value)
+        OTC.Config.SelectedPet = value
+
+        Window:Notify({
+            Title = "Pet Selected",
+            Content = "Selected: " .. value,
+            Duration = 5,
+        })
     end,
 })
 
@@ -2114,6 +2306,7 @@ end
 PetsTab:CreateDropdown({
     name = "Golden Chance",
     description = "Select how many pets to use for each craft.",
+    flag = "GoldenChance",
     options = GoldenOptions,
     value = GoldenOptions[1],
     callback = function(value)
@@ -2126,19 +2319,10 @@ PetsTab:CreateDropdown({
 })
 
 PetsTab:CreateToggle({
-    name = "Include Shiny Pets",
-    description = "Allow Shiny pets to be used for Golden crafting.",
-    value = OTC.Config.IncludeShinyPets or false,
-    callback = function(value)
-        OTC.Config.IncludeShinyPets = value
-        RefreshPets()
-    end,
-})
-
-PetsTab:CreateToggle({
     name = "Auto Golden Pets",
+    description = "Enable or disable auto golden pets.",
     flag = "AutoGoldenPets",
-    value = OTC.Config.AutoGoldenPets,
+    value = OTC.Config.AutoGoldenPets or false,
     callback = function(value)
         OTC.Config.AutoGoldenPets = value
 
@@ -2171,11 +2355,14 @@ PetsTab:CreateToggle({
                     end
 
                     local equippedIds = getEquippedIds(petData)
-                    local selectedPets = {}
+                    local mutatedPet = nil
+                    local normalPets = {}
+
                     local requiredCount = OTC.Config.GoldenPetCount
 
                     if type(requiredCount) ~= "number"
-                        or requiredCount < 1 then
+                        or requiredCount < 1
+                        or requiredCount % 1 ~= 0 then
                         return
                     end
 
@@ -2183,16 +2370,9 @@ PetsTab:CreateToggle({
                         if type(pet) == "table" then
                             local petId = pet.Id or id
 
-                            local isEligibleMutation =
-                                pet.Mutation == nil
-                                or (
-                                    OTC.Config.IncludeShinyPets
-                                    and pet.Mutation == "Shiny"
-                                )
-
-                            if pet.Name == selectedName
+                            local eligible =
+                                pet.Name == selectedName
                                 and pet.Tier == "Normal"
-                                and isEligibleMutation
                                 and not pet.Locked
                                 and not pet.Frozen
                                 and not equippedIds[petId]
@@ -2201,31 +2381,77 @@ PetsTab:CreateToggle({
                                 and not pet.Enchant
                                 and not pet.Enchant2
                                 and not pet.Signature
-                                and pet.Rarity ~= "Secret" then
+                                and pet.Rarity ~= "Secret"
 
-                                table.insert(selectedPets, petId)
-
-                                if #selectedPets >= requiredCount then
-                                    break
+                            if eligible then
+                                if HasMutation(pet) then
+                                    if not mutatedPet then
+                                        mutatedPet = {
+                                            Id = petId,
+                                            Mutation = pet.Mutation,
+                                        }
+                                    end
+                                else
+                                    table.insert(normalPets, petId)
                                 end
                             end
                         end
                     end
 
-                    if #selectedPets == requiredCount then
-                        MachineService.MachineCraftRequested:Fire({
-                            Machine = "Golden",
-                            Action = "Craft",
-                            PetIds = selectedPets,
-                        })
+                    local selectedPets = {}
+
+                    if mutatedPet then
+                        table.insert(selectedPets, mutatedPet.Id)
+
+                        for _, petId in ipairs(normalPets) do
+                            table.insert(selectedPets, petId)
+
+                            if #selectedPets >= requiredCount then
+                                break
+                            end
+                        end
+                    else
+                        for _, petId in ipairs(normalPets) do
+                            table.insert(selectedPets, petId)
+
+                            if #selectedPets >= requiredCount then
+                                break
+                            end
+                        end
                     end
+
+                    if #selectedPets ~= requiredCount then
+                        return
+                    end
+                
+                    if mutatedPet and selectedPets[1] ~= mutatedPet.Id then
+                        warn("[OTC] Golden cancelled: mutated pet is not first.")
+                        return
+                    end
+
+                    print(
+                        "[OTC] Golden craft:",
+                        selectedName,
+                        "| First ID:",
+                        tostring(selectedPets[1]),
+                        "| Mutation:",
+                        mutatedPet and tostring(mutatedPet.Mutation) or "None",
+                        "| Total:",
+                        #selectedPets
+                    )
+
+                    MachineService.MachineCraftRequested:Fire({
+                        Machine = "Golden",
+                        Action = "Craft",
+                        PetIds = selectedPets,
+                    })
                 end)
 
                 if not success then
                     warn("[OTC] Auto Golden error:", err)
                 end
 
-                task.wait(OTC.Config.GoldenDelay)
+                task.wait(OTC.Config.GoldenDelay or 1)
             end
         end)
     end,
@@ -2246,7 +2472,7 @@ local DiamondPetDropdown
 local SelectedDiamondPetName = ""
 local IsRefreshingDiamondPets = false
 
-local function GetDiamondPetName(option)
+function GetDiamondPetName(option)
     if type(option) ~= "string" then
         return ""
     end
@@ -2254,7 +2480,13 @@ local function GetDiamondPetName(option)
     return option:match("^(.-)%s%[") or option
 end
 
-local function RefreshDiamondPets()
+function HasDiamondMutation(pet)
+    return pet.Mutation ~= nil
+        and pet.Mutation ~= ""
+        and pet.Mutation ~= "None"
+end
+
+function RefreshDiamondPets()
     if IsRefreshingDiamondPets then
         return
     end
@@ -2291,6 +2523,7 @@ local function RefreshDiamondPets()
                 if not group then
                     group = {
                         Count = 0,
+                        MutatedCount = 0,
                         EquippedCount = 0,
                     }
 
@@ -2298,6 +2531,10 @@ local function RefreshDiamondPets()
                 end
 
                 group.Count += 1
+
+                if HasDiamondMutation(pet) then
+                    group.MutatedCount += 1
+                end
 
                 if equippedIds[petId] then
                     group.EquippedCount += 1
@@ -2317,15 +2554,23 @@ local function RefreshDiamondPets()
 
         for _, name in ipairs(names) do
             local group = groups[name]
-            local label
+
+            local label = string.format(
+                "%s [x%d | Mutations: %d]",
+                name,
+                group.Count,
+                group.MutatedCount
+            )
 
             if group.EquippedCount > 0 then
-                label = name .. " [Equipped, x" .. tostring(group.Count) .. "]"
-            else
-                label = name .. " [x" .. tostring(group.Count) .. "]"
+                label ..= " [Equipped]"
             end
 
             table.insert(newOptions, label)
+        end
+
+        if #newOptions == 0 then
+            table.insert(newOptions, "None")
         end
 
         local updatedSelection = "None"
@@ -2341,10 +2586,6 @@ local function RefreshDiamondPets()
 
         if updatedSelection == "None" then
             SelectedDiamondPetName = ""
-        end
-
-        if #newOptions == 0 then
-            table.insert(newOptions, "None")
         end
 
         DiamondPetOptions = newOptions
@@ -2365,7 +2606,7 @@ end
 
 DiamondPetDropdown = PetsTab:CreateDropdown({
     name = "Golden Pets",
-    description = "Live inventory of Golden pets and equipped status.",
+    description = "Live inventory with mutation counts and equipped status.",
     options = DiamondPetOptions,
     value = "None",
     flag = "DiamondPetSelection",
@@ -2374,13 +2615,31 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
             return
         end
 
+        if type(value) ~= "string" then
+            return
+        end
+
         if value == "None" or value == "No pets" then
             SelectedDiamondPetName = ""
             OTC.Config.SelectedDiamondPet = "None"
-        else
-            SelectedDiamondPetName = GetDiamondPetName(value)
-            OTC.Config.SelectedDiamondPet = value
+
+            Window:Notify({
+                Title = "Diamond Pets",
+                Content = "No pet selected.",
+                Duration = 3,
+            })
+
+            return
         end
+
+        SelectedDiamondPetName = GetDiamondPetName(value)
+        OTC.Config.SelectedDiamondPet = value
+
+        Window:Notify({
+            Title = "Diamond Pet Selected",
+            Content = "Selected: " .. value,
+            Duration = 5,
+        })
     end,
 })
 
@@ -2399,6 +2658,7 @@ end
 PetsTab:CreateDropdown({
     name = "Diamond Chance",
     description = "Select how many Golden pets to use for each craft.",
+    flag = "DiamondChance",
     options = DiamondOptions,
     value = DiamondOptions[1],
     callback = function(value)
@@ -2412,9 +2672,9 @@ PetsTab:CreateDropdown({
 
 PetsTab:CreateToggle({
     name = "Auto Diamond Pets",
-    description = "Automatically craft the selected Golden pet into Diamond.",
+    description = "Craft using one mutated pet first, then normal Golden pets.",
     flag = "AutoDiamondPets",
-    value = OTC.Config.AutoDiamondPets,
+    value = OTC.Config.AutoDiamondPets or false,
     callback = function(value)
         OTC.Config.AutoDiamondPets = value
 
@@ -2422,11 +2682,11 @@ PetsTab:CreateToggle({
             return
         end
 
-
         task.spawn(function()
-            local function TeleportToDiamondMachine()
+            function TeleportToDiamondMachine()
                 local character = LocalPlayer.Character
-                local root = character and character:FindFirstChild("HumanoidRootPart")
+                local root = character
+                    and character:FindFirstChild("HumanoidRootPart")
 
                 if not root then
                     return false
@@ -2459,6 +2719,7 @@ PetsTab:CreateToggle({
                     end
 
                     local replica = DataController:GetReplica()
+
                     local petData = replica
                         and replica.Data
                         and replica.Data.Pets
@@ -2470,58 +2731,106 @@ PetsTab:CreateToggle({
                     end
 
                     local equippedIds = getEquippedIds(petData)
+                    local mutatedPet = nil
+                    local normalPets = {}
+
                     local requiredCount = OTC.Config.DiamondPetCount
 
                     if type(requiredCount) ~= "number"
-                        or requiredCount < 1 then
+                        or requiredCount < 1
+                        or requiredCount % 1 ~= 0 then
                         return
                     end
-
-                    local selectedPets = {}
 
                     for id, pet in pairs(pets) do
                         if type(pet) == "table" then
                             local petId = pet.Id or id
 
-                            if pet.Name == selectedName
+                            local eligible =
+                                pet.Name == selectedName
                                 and pet.Tier == MachineConfig.Diamond.SourceTier
                                 and pet.Locked ~= true
                                 and pet.Frozen ~= true
                                 and not equippedIds[petId]
                                 and not pet.Equip
                                 and not pet.Equipped
-                                and pet.Mutation == nil
-                                and pet.Enchant == nil
-                                and pet.Enchant2 == nil
-                                and pet.Signature == nil
+                                and not pet.Enchant
+                                and not pet.Enchant2
+                                and not pet.Signature
                                 and not (
                                     type(pet.Rarity) == "string"
                                     and pet.Rarity:match("^Secret")
-                                ) then
+                                )
 
-                                table.insert(selectedPets, petId)
-
-                                if #selectedPets >= requiredCount then
-                                    break
+                            if eligible then
+                                if HasDiamondMutation(pet) then
+                                    if not mutatedPet then
+                                        mutatedPet = {
+                                            Id = petId,
+                                            Mutation = pet.Mutation,
+                                        }
+                                    end
+                                else
+                                    table.insert(normalPets, petId)
                                 end
                             end
                         end
                     end
 
-                    if #selectedPets == requiredCount then
-                        MachineService.MachineCraftRequested:Fire({
-                            Machine = "Diamond",
-                            Action = "Craft",
-                            PetIds = selectedPets,
-                        })
+                    local selectedPets = {}
+
+                    if mutatedPet then
+                        table.insert(selectedPets, mutatedPet.Id)
+
+                        for _, petId in ipairs(normalPets) do
+                            table.insert(selectedPets, petId)
+
+                            if #selectedPets >= requiredCount then
+                                break
+                            end
+                        end
+                    else
+                        for _, petId in ipairs(normalPets) do
+                            table.insert(selectedPets, petId)
+
+                            if #selectedPets >= requiredCount then
+                                break
+                            end
+                        end
                     end
+
+                    if #selectedPets ~= requiredCount then
+                        return
+                    end
+
+                    if mutatedPet and selectedPets[1] ~= mutatedPet.Id then
+                        warn("[OTC Diamond] Cancelled: mutated pet is not first.")
+                        return
+                    end
+
+                    print(
+                        "[OTC Diamond] Craft:",
+                        selectedName,
+                        "| First ID:",
+                        tostring(selectedPets[1]),
+                        "| Mutation:",
+                        mutatedPet and tostring(mutatedPet.Mutation) or "None",
+                        "| Total:",
+                        #selectedPets
+                    )
+
+                    MachineService.MachineCraftRequested:Fire({
+                        Machine = "Diamond",
+                        Action = "Craft",
+                        PetIds = selectedPets,
+                    })
                 end)
 
                 if not success then
                     warn("[OTC Diamond] Craft error:", err)
                 end
 
-                task.wait(OTC.Config.DiamondDelay)
+                task.wait(OTC.Config.DiamondDelay or 1)
             end
         end)
     end,
@@ -2533,7 +2842,6 @@ task.spawn(function()
     end
 end)
 
-
 PetsTab:CreateSection({
     name = "▶ Rainbow"
 })
@@ -2543,7 +2851,7 @@ local RainbowPetDropdown
 local SelectedRainbowPetName = ""
 local IsRefreshingRainbowPets = false
 
-local function GetRainbowPetName(option)
+function GetRainbowPetName(option)
     if type(option) ~= "string" then
         return ""
     end
@@ -2551,7 +2859,7 @@ local function GetRainbowPetName(option)
     return option:match("^(.-)%s%[") or option
 end
 
-local function RefreshRainbowPets()
+function RefreshRainbowPets()
     if IsRefreshingRainbowPets then
         return
     end
@@ -2713,6 +3021,7 @@ end
 PetsTab:CreateDropdown({
     name = "Rainbow Amount",
     description = "Select the number of Diamond pets and crafting duration.",
+    flag = "RainbowAmount",
     options = RainbowCountOptions,
     value = SelectedRainbowCount,
     callback = function(value)
@@ -2737,7 +3046,7 @@ PetsTab:CreateToggle({
         end
 
         task.spawn(function()
-            local function TeleportToRainbowMachine()
+            function TeleportToRainbowMachine()
                 local character = LocalPlayer.Character
                 local root = character
                     and character:FindFirstChild("HumanoidRootPart")
@@ -2747,7 +3056,7 @@ PetsTab:CreateToggle({
                 end
 
                 root.CFrame = CFrame.new(
-                    -106.900513, 11130.2422, -2021.28284,
+                    -106.900513, 11128.2422, -2021.28284,
                     -0.658110976, -0.0182565581, -0.752699971,
                     -0.00705140783, 0.99981159, -0.0180849154,
                     0.752888322, -0.00659428211, -0.658115745
@@ -2870,7 +3179,7 @@ end)
 
 local RainbowClaimToken = 0
 
-local function AutoClaimRainbowLoop(token)
+function AutoClaimRainbowLoop(token)
     local lastClaims = {}
 
     while OTC.Config.AutoClaimRainbowPets
@@ -2902,6 +3211,22 @@ local function AutoClaimRainbowLoop(token)
                     lastClaims[craftId] = os.clock()
 
                     pcall(function()
+                        local character = game:GetService("Players").LocalPlayer.Character
+                        local root = character and character:FindFirstChild("HumanoidRootPart")
+
+                        if root then
+                            root.CFrame = CFrame.new(
+                                -106.900513, 11128.2422, -2021.28284,
+                                -0.658110976, -0.0182565581, -0.752699971,
+                                -0.00705140783, 0.99981159, -0.0180849154,
+                                0.752888322, -0.00659428211, -0.658115745
+                            )
+                        end
+                    end)
+
+                    task.wait(0.25)
+
+                    pcall(function()
                         RainbowClaimEvent:FireServer({
                             Machine = "Shiny",
                             Action = "Claim",
@@ -2927,6 +3252,7 @@ end
 PetsTab:CreateToggle({
     name = "Auto Claim Rainbow Pets",
     description = "Automatically claim completed Rainbow pets",
+    flag = "AutoClaimRainbowPets",
     value = OTC.Config.AutoClaimRainbowPets,
     callback = function(value)
         OTC.Config.AutoClaimRainbowPets = value
@@ -2953,75 +3279,65 @@ PetsTab:CreateSection({
 })
 
 OTC.Config.AutoEnchant = false
-OTC.Config.SelectedEnchantPet = ""
-OTC.Config.SelectedEnchantSlot = 1
-OTC.Config.SelectedEnchantTypes = {}
+OTC.Config.SelectedEnchantPet = OTC.Config.SelectedEnchantPet or ""
+OTC.Config.SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot or 1
+OTC.Config.SelectedEnchantTypes = OTC.Config.SelectedEnchantTypes or {}
 
 local EnchantPetDropdown
 local EnchantPetOptions = {}
 local EnchantPetIds = {}
-local SelectedEnchantPetId = nil
+local SelectedEnchantPetId
 local SelectedEnchantTypes = {}
-local SelectedEnchantSlot = 1
+local SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot
 local AutoEnchantToken = 0
 
-local function GetEnchantPetData()
-    local replica = DataController:GetReplica()
-    local data = replica and replica.Data
-    local pets = data and data.Pets
+local EnchantPosition = CFrame.new(
+    127.143799, 7695.35156, -1802.73132,
+    0.972156405, -0.0243377797, -0.23306559,
+    0.0274353698, 0.999572992, 0.0100576207,
+    0.232721284, -0.0161718223, 0.97240901
+)
 
-    if not pets or type(pets.Owned) ~= "table" then
+function GetEnchantPetData()
+    local success, replica = pcall(function()
+        return DataController:GetReplica()
+    end)
+
+    if not success or not replica or not replica.Data then
         return nil, nil
+    end
+
+    local data = replica.Data
+    local pets = data.Pets
+
+    if type(pets) ~= "table" or type(pets.Owned) ~= "table" then
+        return data, nil
     end
 
     return data, pets
 end
 
-local function GetCurrentEnchant(pet)
-    local first = pet.Enchant or "None"
-    local second = pet.Enchant2 or "None"
+function GetSelectedEnchantList()
+    local result = {}
 
-    return first .. " / " .. second
-end
-
-local function DebugEnchantPet(petId)
-    local _, pets = GetEnchantPetData()
-    local pet = pets and pets.Owned and pets.Owned[petId]
-
-    if not pet then
-        warn("[Enchant Debug] Pet not found:", tostring(petId))
-        return
-    end
-
-    local function dump(value, prefix, depth)
-        if depth > 5 then
-            return
-        end
-
-        for key, child in pairs(value) do
-            local name = prefix .. "." .. tostring(key)
-
-            if type(child) == "table" then
-                print("[Enchant Debug]", name, "= table")
-                dump(child, name, depth + 1)
-            else
-                print("[Enchant Debug]", name, "=", tostring(child))
-            end
+    for enchantName, enabled in pairs(SelectedEnchantTypes) do
+        if enabled and EnchantConfig.IsFilterable(enchantName) then
+            table.insert(result, enchantName)
         end
     end
 
-    print("[Enchant Debug] Selected UUID:", tostring(petId))
-    dump(pet, "Pet", 0)
+    table.sort(result)
+
+    return result
 end
 
-local function RefreshEnchantPets()
+function RefreshEnchantPets()
     table.clear(EnchantPetOptions)
     table.clear(EnchantPetIds)
 
-    local data, pets = GetEnchantPetData()
+    local _, pets = GetEnchantPetData()
 
     if not pets then
-        warn("[Enchant Debug] Pet data unavailable")
         return
     end
 
@@ -3033,13 +3349,31 @@ local function RefreshEnchantPets()
 
     for petId, pet in pairs(pets.Owned) do
         if type(pet) == "table" then
+            local name = tostring(pet.Name or "Pet")
             local isEquipped = equipped[petId] or pet.Equip == true
-            local label = string.format(
-                "%s [%s] [%s]",
-                tostring(pet.Nickname or pet.Name or "Pet"),
-                tostring(petId),
-                isEquipped and "Equipped" or "Unequipped"
-            )
+            local labels = {}
+
+            if isEquipped then
+                table.insert(labels, "Equipped")
+            end
+
+            if type(pet.Enchant) == "string" and pet.Enchant ~= "" then
+                table.insert(labels, "Slot 1: " .. pet.Enchant)
+            end
+
+            if type(pet.Enchant2) == "string" and pet.Enchant2 ~= "" then
+                table.insert(labels, "Slot 2: " .. pet.Enchant2)
+            end
+
+            local label = name
+
+            if #labels > 0 then
+                label ..= " [" .. table.concat(labels, ", ") .. "]"
+            end
+
+            if EnchantPetIds[label] then
+                label ..= " [" .. tostring(petId) .. "]"
+            end
 
             table.insert(EnchantPetOptions, label)
             EnchantPetIds[label] = petId
@@ -3049,11 +3383,11 @@ local function RefreshEnchantPets()
     table.sort(EnchantPetOptions)
 
     if EnchantPetDropdown then
-        EnchantPetDropdown:Refresh(EnchantPetOptions, false)
+        pcall(function()
+            EnchantPetDropdown:Refresh(EnchantPetOptions)
+        end)
     end
 end
-
-RefreshEnchantPets()
 
 local EnchantTypeOptions = {}
 
@@ -3065,79 +3399,13 @@ end
 
 table.sort(EnchantTypeOptions)
 
-local function GetSelectedEnchantList()
-    local result = {}
-
-    for enchantName, enabled in pairs(SelectedEnchantTypes) do
-        if enabled == true and EnchantConfig.IsFilterable(enchantName) then
-            table.insert(result, enchantName)
-        end
-    end
-
-    table.sort(result)
-    return result
-end
-
-local function StartAutoEnchant()
-    if not SelectedEnchantPetId then
-        return false
-    end
-
-    local desired = GetSelectedEnchantList()
-
-    if #desired == 0 then
-        return false
-    end
-
-    local data = GetEnchantData()
-    local pet = data
-        and data.Pets
-        and data.Pets.Owned
-        and data.Pets.Owned[SelectedEnchantPetId]
-
-    if not pet then
-        return false
-    end
-
-    if SelectedEnchantSlot > EnchantConfig.GetSlotCount(pet) then
-        return false
-    end
-
-    local saveOK, saveReason = EnchantController:SaveFilters(desired)
-
-    if not saveOK then
-        warn("[AutoEnchant] SaveFilters failed:", saveReason)
-        return false
-    end
-
-    local ok, result, reason = pcall(function()
-        return EnchantController:AutoStart(
-            SelectedEnchantPetId,
-            SelectedEnchantSlot,
-            nil
-        )
-    end)
-
-    if not ok or not result then
-        warn("[AutoEnchant] Start failed:", ok and reason or result)
-        return false
-    end
-
-    return true
-end
-
-local function StopAutoEnchant()
-    pcall(function()
-        EnchantController:AutoStop()
-    end)
-end
-
 PetsTab:CreateDropdown({
     name = "Enchant Type",
-    description = "Select one or more desired enchant results",
+    description = "Select multiple enchants. Stops when a selected enchant is obtained.",
     options = EnchantTypeOptions,
-    multi = true,
     value = {},
+    multiSelect = true,
+    flag = "SelectedEnchantTypes",
     callback = function(value)
         table.clear(SelectedEnchantTypes)
 
@@ -3153,78 +3421,271 @@ PetsTab:CreateDropdown({
     end
 })
 
-EnchantPetDropdown = PetsTab:CreateDropdown({
-    Name = "Select Pet",
-    Options = EnchantPetOptions,
-    CurrentOption = {},
-    MultipleOptions = false,
-    Callback = function(value)
+PetsTab:CreateDropdown({
+    name = "Enchant Slot",
+    description = "Choose which enchant slot to roll.",
+    options = {"Slot 1", "Slot 2"},
+    value = SelectedEnchantSlot == 2 and "Slot 2" or "Slot 1",
+    flag = "SelectedEnchantSlot",
+    callback = function(value)
         if type(value) == "table" then
             value = value[1]
         end
 
-        print("[Enchant Debug] Callback value:", tostring(value))
-        print("[Enchant Debug] Value type:", typeof(value))
+        if value == "Slot 1" then
+            SelectedEnchantSlot = 1
+        elseif value == "Slot 2" then
+            SelectedEnchantSlot = 2
+        else
+            return
+        end
+
+        OTC.Config.SelectedEnchantSlot = SelectedEnchantSlot
+
+        Window:Notify({
+            Title = "Enchant Slot",
+            Content = "Selected: " .. value,
+            Duration = 3
+        })
+    end
+})
+
+EnchantPetDropdown = PetsTab:CreateDropdown({
+    name = "Select Pet",
+    description = "Select the pet to enchant.",
+    options = EnchantPetOptions,
+    value = "",
+    multiSelect = false,
+    flag = "SelectedEnchantPet",
+    callback = function(value)
+        if type(value) == "table" then
+            value = value[1]
+        end
 
         SelectedEnchantPetId = EnchantPetIds[value]
-
-        print(
-            "[Enchant Debug] Selected UUID:",
-            tostring(SelectedEnchantPetId)
-        )
+        OTC.Config.SelectedEnchantPet = SelectedEnchantPetId or ""
 
         if SelectedEnchantPetId then
-            DebugEnchantPet(SelectedEnchantPetId)
+            Window:Notify({
+                Title = "Enchant",
+                Content = "Selected: " .. tostring(value)
+                    .. "\nPet ID: " .. tostring(SelectedEnchantPetId),
+                Duration = 5
+            })
         else
-            warn("[Enchant Debug] UUID mapping failed")
+            Window:Notify({
+                Title = "Enchant",
+                Content = "No pet selected.",
+                Duration = 3
+            })
         end
     end
 })
 
-PetsTab:CreateDropdown({
-    name = "Enchant Slot",
-    description = "Choose the enchant slot",
-    options = {"1", "2"},
-    value = "1",
-    callback = function(value)
-        SelectedEnchantSlot = tonumber(value) or 1
-        OTC.Config.SelectedEnchantSlot = SelectedEnchantSlot
-    end
-})
+RefreshEnchantPets()
 
-PetsTab:CreateButton({
-    name = "Refresh Enchant Pets",
-    description = "Refresh pet names, UUIDs and current enchants",
-    callback = function()
-        RefreshEnchantPets()
+function StartAutoEnchant()
+    if not SelectedEnchantPetId then
+        Window:Notify({
+            Title = "Auto Enchant",
+            Content = "Select a pet first.",
+            Duration = 3
+        })
+        return false
     end
-})
+
+    local desired = GetSelectedEnchantList()
+
+    if #desired == 0 then
+        Window:Notify({
+            Title = "Auto Enchant",
+            Content = "Select at least one enchant.",
+            Duration = 3
+        })
+        return false
+    end
+
+    local _, pets = GetEnchantPetData()
+    local pet = pets and pets.Owned[SelectedEnchantPetId]
+
+    if not pet then
+        warn("[Auto Enchant] Pet not found:", SelectedEnchantPetId)
+        return false
+    end
+
+    local currentEnchant
+
+    if SelectedEnchantSlot == 1 then
+        currentEnchant = pet.Enchant
+    elseif SelectedEnchantSlot == 2 then
+        currentEnchant = pet.Enchant2
+    else
+        warn("[Auto Enchant] Invalid slot:", SelectedEnchantSlot)
+        return false
+    end
+
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        warn("[Auto Enchant] Character unavailable.")
+        return false
+    end
+
+    root.CFrame = EnchantPosition
+    task.wait(0.5)
+
+    local filtersOK, filtersResult = pcall(function()
+        return EnchantService:SetFilters(desired)
+    end)
+
+    if not filtersOK then
+        warn("[Auto Enchant] SetFilters error:", filtersResult)
+        return false
+    end
+
+    if type(filtersResult) == "table"
+        and filtersResult.Success == false then
+        warn("[Auto Enchant] SetFilters rejected:", filtersResult.Reason)
+        return false
+    end
+
+    local startOK, startResult = pcall(function()
+        return EnchantService:AutoStart({
+            PetId = SelectedEnchantPetId,
+            Slot = SelectedEnchantSlot,
+            Replace = currentEnchant
+        })
+    end)
+
+    if not startOK then
+        warn("[Auto Enchant] AutoStart error:", startResult)
+        return false
+    end
+
+    if type(startResult) ~= "table" or startResult.Success ~= true then
+        local reason = type(startResult) == "table"
+            and startResult.Reason
+            or "Unknown"
+
+        warn("[Auto Enchant] AutoStart rejected:", reason)
+
+        Window:Notify({
+            Title = "Auto Enchant",
+            Content = "Failed to start: " .. tostring(reason),
+            Duration = 4
+        })
+
+        return false
+    end
+
+    Window:Notify({
+        Title = "Auto Enchant",
+        Content = "Auto Enchant started on Slot " .. SelectedEnchantSlot .. ".",
+        Duration = 3
+    })
+
+    return true
+end
+
+function ClaimEnchantPet(token)
+    while OTC.Config.AutoEnchant and token == AutoEnchantToken do
+        if LocalPlayer:GetAttribute("EnchantHeldState") == "Done" then
+            local heldResult = LocalPlayer:GetAttribute("EnchantHeldResult")
+
+            local ok, result = pcall(function()
+                return EnchantService:Claim()
+            end)
+
+            if not ok then
+                warn("[Auto Enchant] Claim error:", result)
+                return false
+            end
+
+            if type(result) == "table" and result.Success == true then
+                Window:Notify({
+                    Title = "Auto Enchant",
+                    Content = "Obtained " .. tostring(heldResult) .. "! Pet claimed.",
+                    Duration = 4
+                })
+
+                return true
+            end
+
+            warn(
+                "[Auto Enchant] Claim rejected:",
+                type(result) == "table" and result.Reason or result
+            )
+
+            return false
+        end
+
+        task.wait(0.1)
+    end
+
+    return false
+end
+
+function StopAutoEnchant()
+    local success, err = pcall(function()
+        return EnchantService:AutoStop()
+    end)
+
+    if not success then
+        warn("[Enchant] Stop error:", err)
+    end
+end
 
 PetsTab:CreateToggle({
     name = "Auto Enchant",
-    description = "Continue until any selected enchant is obtained",
+    description = "Rolls the selected slot until a selected enchant is obtained.",
     value = false,
+    flag = "AutoEnchant",
     callback = function(value)
         OTC.Config.AutoEnchant = value
         AutoEnchantToken += 1
 
         local token = AutoEnchantToken
 
-        if value then
-            task.spawn(function()
-                local ok, result = pcall(StartAutoEnchant)
-
-                if not ok or not result then
-                    if token == AutoEnchantToken then
-                        OTC.Config.AutoEnchant = false
-                    end
-                end
-            end)
-        else
+        if not value then
             StopAutoEnchant()
+            return
         end
+
+        task.spawn(function()
+            local success, result = pcall(StartAutoEnchant)
+
+            if not success then
+                warn("[Enchant] Start error:", result)
+            end
+
+            if not success or not result then
+                if token == AutoEnchantToken then
+                    OTC.Config.AutoEnchant = false
+                end
+                return
+            end
+
+            if token ~= AutoEnchantToken or not OTC.Config.AutoEnchant then
+                return
+            end
+
+            local claimOK, claimResult = pcall(ClaimEnchantPet, token)
+
+            if not claimOK then
+                warn("[Enchant] Claim error:", claimResult)
+            elseif not claimResult then
+                warn("[Enchant] Claim did not complete.")
+            end
+        end)
     end
 })
+
+task.spawn(function()
+    while task.wait(2) do
+        RefreshEnchantPets()
+    end
+end)
 
 local AutoEquipBestPets = false
 local AutoEquipBestSession = 0
@@ -3272,7 +3733,7 @@ local OriginalHatchPlay = HatchRenderer.Play
 local OriginalSecretPlay = SecretHatchRenderer.Play
 local OriginalSecretPlayReveal = SecretHatchRenderer.PlayReveal
 
-local function IsHatchAnimationDisabled()
+function IsHatchAnimationDisabled()
     return workspace:GetAttribute("DisableEggHatchAnimation") == true
 end
 
@@ -3321,7 +3782,7 @@ SecretHatchRenderer.PlayReveal = function(self, ...)
     return OriginalSecretPlayReveal(self, ...)
 end
 
-local function FormatEggPrice(price)
+function FormatEggPrice(price)
     local suffixes = {
         {1e15, "Qa"},
         {1e12, "T"},
@@ -3390,6 +3851,7 @@ end
 EggsTab:CreateDropdown({
     name = "Eggs",
     description = "Select an egg to hatch.",
+    flag = "Eggs",
     options = EggOptions,
     value = SelectedEggOption or EggOptions[1],
     callback = function(value)
@@ -3425,6 +3887,7 @@ end
 EggsTab:CreateDropdown({
     name = "Amount",
     description = "Choose how many eggs to hatch per request.",
+    flag = "Amount",
     options = AmountOptions,
     value = SelectedAmount,
     callback = function(value)
@@ -3447,7 +3910,7 @@ EggsTab:CreateToggle({
     end,
 })
 
-local function TeleportToEgg()
+function TeleportToEgg()
     local eggName = OTC.Config.SelectedEgg
     local eggConfig = eggName and LaunchEggConfig[eggName]
 
@@ -3580,24 +4043,13 @@ EggsTab:CreateToggle({
 local AutoDig = false
 local AutoDigSession = 0
 
-local function log(...)
-    print("[OTC Auto Dig]", ...)
-end
-
-local function logError(...)
-    warn("[OTC Auto Dig ERROR]", ...)
-end
-
-local function TeleportToDigZone()
-    log("Caut DigZone...")
-
+function TeleportToDigZone()
     local islands = workspace:FindFirstChild("Ts2Islands")
     local autumn = islands and islands:FindFirstChild("Autumn")
     local digsite = autumn and autumn:FindFirstChild("Digsite")
     local digZone = digsite and digsite:FindFirstChild("DigZone")
 
     if not digZone then
-        logError("DigZone nu a fost găsit!")
         return false
     end
 
@@ -3605,7 +4057,6 @@ local function TeleportToDigZone()
     local root = character and character:FindFirstChild("HumanoidRootPart")
 
     if not root then
-        logError("HumanoidRootPart nu a fost găsit!")
         return false
     end
 
@@ -3619,25 +4070,21 @@ local function TeleportToDigZone()
         local part = digZone:FindFirstChildWhichIsA("BasePart", true)
 
         if not part then
-            logError("DigZone nu conține niciun BasePart!")
             return false
         end
 
         targetPosition = part.Position
     end
 
-    log("Teleport la:", targetPosition)
-
     root.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
     task.wait(0.5)
 
-    log("Teleport efectuat.")
     return true
 end
 
 local lastRewardClose = 0
 
-local function HandleDigReward()
+function HandleDigReward()
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then
         return false
@@ -3654,17 +4101,9 @@ local function HandleDigReward()
 
             lastRewardClose = os.clock()
 
-            print("[OTC Auto Dig] Încerc închiderea recompensei.")
-
-            local success, err = pcall(function()
+            pcall(function()
                 DigRewardPopup:Close()
             end)
-
-            if not success then
-                warn("[OTC Auto Dig] Close error:", err)
-            else
-                print("[OTC Auto Dig] Close apelat.")
-            end
 
             return true
         end
@@ -3673,29 +4112,17 @@ local function HandleDigReward()
     return false
 end
 
-local function TryActivate(reason)
-    log("Activate() apelat. Motiv:", reason)
-
+function TryActivate()
     local success, result = pcall(function()
         return DigController:Activate()
     end)
 
     if not success then
-        logError("Activate() a produs o eroare:", result)
         return false
     end
 
-    if typeof(result) == "table" then
-        log("Rezultat Activate():", result.Error or "fără Error")
-
-        if result.Error then
-            logError("Activate a returnat:", result.Error)
-            return false
-        end
-    elseif result == nil then
-        log("Activate() a returnat nil; verificăm starea minigame-ului.")
-    else
-        log("Rezultat Activate():", result)
+    if typeof(result) == "table" and result.Error then
+        return false
     end
 
     return true
@@ -3713,36 +4140,24 @@ MinigamesTab:CreateToggle({
 
         local session = AutoDigSession
 
-        log("Toggle schimbat:", value)
-
         if not value then
-            log("Auto Dig oprit.")
             return
         end
 
-        log("Auto Dig pornit.")
-
         task.spawn(function()
-            log("Inițializez teleportarea...")
-
             if not TeleportToDigZone() then
-                logError("Inițializarea a eșuat. Oprire.")
                 if AutoDigSession == session then
                     AutoDig = false
                 end
                 return
             end
 
-            log("Încep bucla principală.")
-
             local lastStartAttempt = 0
-            local lastState = nil
             local lastRoundSequence = nil
 
             while AutoDig and AutoDigSession == session do
-                local success, err = pcall(function()
+                local success = pcall(function()
                     if HandleDigReward() then
-                        log("Recompensă detectată; aștept închiderea popup-ului.")
                         task.wait(0.5)
                         return
                     end
@@ -3750,14 +4165,9 @@ MinigamesTab:CreateToggle({
                     local state = DigController:GetState()
 
                     if not state then
-                        if lastState ~= "NO_STATE" then
-                            log("Stare nil: încerc să pornesc minigame-ul.")
-                            lastState = "NO_STATE"
-                        end
-
                         if os.clock() - lastStartAttempt >= 0.5 then
                             lastStartAttempt = os.clock()
-                            TryActivate("state nil")
+                            TryActivate()
                         end
 
                         task.wait(0.2)
@@ -3767,14 +4177,9 @@ MinigamesTab:CreateToggle({
                     local round = state.Round
 
                     if not round then
-                        if lastState ~= "WAITING" then
-                            log("Nu există rundă activă. Încerc pornirea.")
-                            lastState = "WAITING"
-                        end
-
                         if os.clock() - lastStartAttempt >= 0.5 then
                             lastStartAttempt = os.clock()
-                            TryActivate("round nil / Tap to Dig")
+                            TryActivate()
                         end
 
                         task.wait(0.2)
@@ -3782,33 +4187,21 @@ MinigamesTab:CreateToggle({
                     end
 
                     if lastRoundSequence ~= round.Sequence then
-                        log("Rundă detectată. Sequence:", round.Sequence)
                         lastRoundSequence = round.Sequence
-                        lastState = "ROUND"
                     end
 
                     local sequence = round.Sequence
 
                     while AutoDig and AutoDigSession == session do
                         if HandleDigReward() then
-                            log("Recompensă detectată în timpul rundei.")
                             break
                         end
 
                         local currentState = DigController:GetState()
 
-                        if not currentState then
-                            log("Starea a dispărut în timpul rundei.")
-                            break
-                        end
-
-                        if not currentState.Round then
-                            log("Runda s-a încheiat sau așteaptă repornirea.")
-                            break
-                        end
-
-                        if currentState.Round.Sequence ~= sequence then
-                            log("Sequence s-a schimbat; verific următoarea rundă.")
+                        if not currentState
+                            or not currentState.Round
+                            or currentState.Round.Sequence ~= sequence then
                             break
                         end
 
@@ -3819,15 +4212,7 @@ MinigamesTab:CreateToggle({
                         if now >= round.Epoch
                             and distance <= round.Width * 0.35 then
 
-                            log(
-                                "Zona DIG detectată!",
-                                "Cursor:", cursor,
-                                "Center:", round.Center,
-                                "Distance:", distance
-                            )
-
-                            TryActivate("DIG zone")
-
+                            TryActivate()
                             task.wait(DigConfig.MinHitInterval or 0.16)
                             break
                         end
@@ -3837,14 +4222,11 @@ MinigamesTab:CreateToggle({
                 end)
 
                 if not success then
-                    logError("Eroare în bucla principală:", err)
                     task.wait(0.5)
                 end
 
                 task.wait(0.05)
             end
-
-            log("Bucla s-a oprit. Session:", session)
         end)
     end,
 })
@@ -3852,13 +4234,12 @@ MinigamesTab:CreateToggle({
 local AutoPetDefense = false
 local AutoPetDefenseSession = 0
 
-local function TeleportToColosseum()
+function TeleportToColosseum()
     local island = workspace:FindFirstChild("WaveDefence Island")
     local waveDefense = island and island:FindFirstChild("WaveDefense")
     local colosseum = waveDefense and waveDefense:FindFirstChild("Colosseum")
 
     if not colosseum then
-        warn("[OTC Pet Defense] Colosseum nu a fost găsit.")
         return false
     end
 
@@ -3866,7 +4247,6 @@ local function TeleportToColosseum()
     local root = character and character:FindFirstChild("HumanoidRootPart")
 
     if not root then
-        warn("[OTC Pet Defense] HumanoidRootPart nu a fost găsit.")
         return false
     end
 
@@ -3880,7 +4260,6 @@ local function TeleportToColosseum()
         local part = colosseum:FindFirstChildWhichIsA("BasePart", true)
 
         if not part then
-            warn("[OTC Pet Defense] Colosseum nu conține niciun BasePart.")
             return false
         end
 
@@ -3888,29 +4267,24 @@ local function TeleportToColosseum()
     end
 
     root.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
-    print("[OTC Pet Defense] Teleport reușit.")
     return true
 end
 
-local function StartPetDefense()
-    print("[OTC Pet Defense] Începem procedura de start...")
-
+function StartPetDefense()
     if not TeleportToColosseum() then
         return false
     end
 
     task.wait(1)
 
-    -- Deschide interfața de confirmare a Colosseum-ului.
-    local opened, openError = pcall(function()
+    local opened = pcall(function()
         ColosseumClientAdapter.Signals.Fire("StartColosseum")
     end)
 
     if not opened then
-        warn("[OTC Pet Defense] Nu am putut deschide confirmarea:", openError)
+        return false
     end
 
-    -- Așteaptă apariția butonului Yes.
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
     local yesButton
 
@@ -3930,49 +4304,32 @@ local function StartPetDefense()
         task.wait(0.1)
     end
 
-    if not yesButton then
-        warn("[OTC Pet Defense] Butonul Yes nu a apărut.")
+    if not yesButton or typeof(firesignal) ~= "function" then
         return false
     end
 
-    if typeof(firesignal) ~= "function" then
-        warn("[OTC Pet Defense] Executorul nu oferă firesignal.")
-        return false
-    end
-
-    print("[OTC Pet Defense] Apăsăm Yes...")
-
-    local clicked, clickError = pcall(function()
+    local clicked = pcall(function()
         firesignal(yesButton.Activated)
     end)
 
     if not clicked then
-        warn("[OTC Pet Defense] Eroare la Yes:", clickError)
         return false
     end
 
-    -- Verifică dacă jocul a pornit efectiv.
     for _ = 1, 100 do
         if LocalPlayer:GetAttribute("ColosseumActive") == true then
-            print("[OTC Pet Defense] SUCCESS: ColosseumActive = true!")
             return true
         end
 
         task.wait(0.1)
     end
 
-    warn(
-        "[OTC Pet Defense] Nu s-a confirmat pornirea.",
-        "ColosseumActive =",
-        tostring(LocalPlayer:GetAttribute("ColosseumActive"))
-    )
-
     return false
 end
 
 MinigamesTab:CreateToggle({
     name = "Auto Pet Defense",
-    description = "Teleport, confirmă cu Yes și atacă automat.",
+    description = "Battle with Enemies",
     flag = "AutoPetDefense",
     value = false,
 
@@ -3983,7 +4340,6 @@ MinigamesTab:CreateToggle({
         local session = AutoPetDefenseSession
 
         if not value then
-            print("[OTC Pet Defense] Dezactivat.")
             return
         end
 
@@ -3995,12 +4351,11 @@ MinigamesTab:CreateToggle({
             end
 
             if not started then
-                warn("[OTC Pet Defense] Start neconfirmat; verifică mesajele din Output.")
                 return
             end
 
             while AutoPetDefense and AutoPetDefenseSession == session do
-                local success, err = pcall(function()
+                local success = pcall(function()
                     if LocalPlayer:GetAttribute("ColosseumActive") ~= true then
                         task.wait(0.25)
                         return
@@ -4026,11 +4381,7 @@ MinigamesTab:CreateToggle({
                     end
                 end)
 
-                if not success then
-                    warn("[OTC Auto Pet Defense] Error:", err)
-                end
-
-                task.wait(0.22)
+                task.wait(success and 0.22 or 0.5)
             end
         end)
     end,
@@ -4456,6 +4807,7 @@ MinigamesTab:CreateSection({
 MinigamesTab:CreateToggle({
     name = "Auto Mine",
     description = "Automatically mines blocks",
+    flag = "AutoMine",
     callback = function(Value)
         OTC.Config.AutoMine = Value
 
@@ -4591,7 +4943,7 @@ local SliderObject
 local AutoSellTriggered = false
 local AutoSellBusy = false
 
-local function GetSellPad()
+function GetSellPad()
     local MineArea = workspace:FindFirstChild("MineArea")
     local CaveDecor = MineArea and MineArea:FindFirstChild("CaveDecor")
     local Stands = CaveDecor and CaveDecor:FindFirstChild("Stands")
@@ -4607,7 +4959,7 @@ local function GetSellPad()
     return SellCircle
 end
 
-local function TweenToSell()
+function TweenToSell()
     local SellCircle = GetSellPad()
 
     if not SellCircle then
@@ -4681,6 +5033,7 @@ end
 SliderObject = MinigamesTab:CreateSlider({
     name = "Sell Amount",
     description = "Move to Sell when backpack reaches this count",
+    flag = "SellAmount",
     range = {1, CurrentCapacity},
     increment = 1,
     value = math.clamp(
@@ -4707,6 +5060,7 @@ SliderObject = MinigamesTab:CreateSlider({
 MinigamesTab:CreateToggle({
     name = "Auto Sell",
     description = "Move to Sell and sell once at the threshold",
+    flag = "AutoSell",
     callback = function(Value)
         OTC.Config.AutoSell = Value
 
@@ -4832,7 +5186,7 @@ local UpgradeBusy = {
     Backpack = false
 }
 
-local function GetUpgradeStand()
+function GetUpgradeStand()
     local MineArea = workspace:FindFirstChild("MineArea")
     local CaveDecor = MineArea and MineArea:FindFirstChild("CaveDecor")
     local Stands = CaveDecor and CaveDecor:FindFirstChild("Stands")
@@ -5017,6 +5371,7 @@ end
 MinigamesTab:CreateToggle({
     name = "Auto Upgrade Pickaxe",
     description = "Teleport to Upgrade Stand and buy/equip pickaxes",
+    flag = "AutoUpgradePickaxe",
     callback = function(Value)
         AutoUpgradePickaxe = Value
 
@@ -5029,6 +5384,7 @@ MinigamesTab:CreateToggle({
 MinigamesTab:CreateToggle({
     name = "Auto Upgrade Backpack",
     description = "Teleport to Upgrade Stand and buy/equip backpacks",
+    flag = "AutoUpgradeBackpack",
     callback = function(Value)
         AutoUpgradeBackpack = Value
 
@@ -5196,6 +5552,7 @@ end
 
 MinigamesTab:CreateToggle({
     Name = "Auto Buy Daily Shop",
+    Description = "Enable or disable auto buy daily shop.",
     CurrentValue = false,
     Flag = "AutoBuyDailyShop",
 
@@ -5212,17 +5569,23 @@ local AutoTrickOrTreat = false
 local TrickOrTreatRunning = false
 local TrickOrTreatDelay = 1
 
-local function getTrickOrTreatHouses()
+function getTrickOrTreatHouses()
     local houses = {}
-    local island = Workspace:FindFirstChild("HalloweenIsland")
+    local island = Workspace:FindFirstChild(
+        TrickOrTreatConfig.Folder
+    )
 
     if not island then
         return houses
     end
 
     for _, object in ipairs(island:GetDescendants()) do
-        if object:IsA("Model") and object.Name == "TrickOrTreat" then
-            local houseId = object:GetAttribute("HouseId")
+        if object:IsA("Model")
+            and object.Name == TrickOrTreatConfig.PadName then
+
+            local houseId = object:GetAttribute(
+                TrickOrTreatConfig.HouseAttribute
+            )
 
             if houseId ~= nil then
                 table.insert(houses, {
@@ -5236,46 +5599,94 @@ local function getTrickOrTreatHouses()
     return houses
 end
 
-local function runAutoTrickOrTreat()
+function getTrickOrTreatStatus(houses)
+    local readyHouses = {}
+    local cooldownCount = 0
+
+    local success, replica = pcall(function()
+        return DataController:GetReplica()
+    end)
+
+    if not success or not replica or type(replica.Data) ~= "table" then
+        return nil, 0
+    end
+
+    local savedHouses = replica.Data.TrickOrTreat or {}
+    local now = Workspace:GetServerTimeNow()
+
+    for _, house in ipairs(houses) do
+        local lastVisit = tonumber(savedHouses[house.Id]) or 0
+        local readyAt = TrickOrTreatConfig.ReadyAt(lastVisit)
+        local remaining = readyAt - now
+
+        if remaining <= 0 then
+            table.insert(readyHouses, house)
+        else
+            cooldownCount += 1
+            print(string.format(
+                "[OTC Halloween] House %s cooldown: %ds",
+                tostring(house.Id),
+                math.ceil(remaining)
+            ))
+        end
+    end
+
+    return readyHouses, cooldownCount
+end
+
+function runAutoTrickOrTreat()
     if TrickOrTreatRunning then
         return
     end
 
     TrickOrTreatRunning = true
 
+    function finish(message)
+        AutoTrickOrTreat = false
+        TrickOrTreatRunning = false
+
+        if message then
+            warn("[OTC Halloween] " .. message)
+        end
+    end
+
     local success, result = pcall(function()
-        ReplicatedStorage.RemoteServices.IslandService.RF.Travel:InvokeServer({
-            Source = "Portal",
-            Island = "Halloween"
-        })
+        return ReplicatedStorage
+            .RemoteServices
+            .IslandService
+            .RF
+            .Travel:InvokeServer({
+                Source = "Portal",
+                Island = "Halloween"
+            })
     end)
 
     if not success then
-        warn("[OTC Halloween] Travel failed:", result)
-        TrickOrTreatRunning = false
+        finish("Travel failed: " .. tostring(result))
         return
     end
 
     local island
 
     for _ = 1, 60 do
-        island = Workspace:FindFirstChild("HalloweenIsland")
-
-        if island then
-            break
-        end
-
         if not AutoTrickOrTreat then
             TrickOrTreatRunning = false
             return
+        end
+
+        island = Workspace:FindFirstChild(
+            TrickOrTreatConfig.Folder
+        )
+
+        if island then
+            break
         end
 
         task.wait(0.5)
     end
 
     if not island then
-        warn("[OTC Halloween] HalloweenIsland not loaded.")
-        TrickOrTreatRunning = false
+        finish("HalloweenIsland not loaded.")
         return
     end
 
@@ -5284,39 +5695,70 @@ local function runAutoTrickOrTreat()
 
         if #houses == 0 then
             task.wait(2)
-        else
-            for _, house in ipairs(houses) do
-                if not AutoTrickOrTreat then
-                    break
-                end
+            continue
+        end
 
-                if house.Model:IsDescendantOf(Workspace) then
-                    local character = LocalPlayer.Character
-                        or LocalPlayer.CharacterAdded:Wait()
+        local readyHouses, cooldownCount =
+            getTrickOrTreatStatus(houses)
 
-                    local root = character:FindFirstChild("HumanoidRootPart")
+        if not readyHouses then
+            task.wait(1)
+            continue
+        end
 
-                    if root then
-                        root.CFrame = house.Model:GetPivot() * CFrame.new(0, 0, 4)
-                        task.wait(0.5)
+        if #readyHouses == 0 then
+            finish(string.format(
+                "All %d houses are on cooldown. Auto stopped.",
+                cooldownCount
+            ))
+            return
+        end
 
-                        local knockSuccess, knockResult = pcall(function()
-                            return TrickOrTreatService:Knock(house.Id)
-                        end)
-
-                        if knockSuccess then
-                            print("[OTC Halloween] Knock:", house.Id, knockResult)
-                        else
-                            warn("[OTC Halloween] Knock failed:", house.Id, knockResult)
-                        end
-
-                        task.wait(TrickOrTreatDelay)
-                    end
-                end
+        for _, house in ipairs(readyHouses) do
+            if not AutoTrickOrTreat then
+                break
             end
 
-            task.wait(1)
+            if not house.Model:IsDescendantOf(Workspace) then
+                continue
+            end
+
+            local character = LocalPlayer.Character
+                or LocalPlayer.CharacterAdded:Wait()
+
+            local root = character:FindFirstChild("HumanoidRootPart")
+
+            if not root then
+                continue
+            end
+
+            root.CFrame = house.Model:GetPivot()
+                * CFrame.new(0, 0, 4)
+
+            task.wait(0.5)
+
+            local knockSuccess, knockResult = pcall(function()
+                return TrickOrTreatService:Knock(house.Id)
+            end)
+
+            if knockSuccess then
+                print(
+                    "[OTC Halloween] Knock:",
+                    house.Id,
+                    knockResult
+                )
+            else
+                warn(
+                    "[OTC Halloween] Knock failed:",
+                    house.Id,
+                    knockResult
+                )
+            end
+
+            task.wait(TrickOrTreatDelay)
         end
+
+        task.wait(0.5)
     end
 
     TrickOrTreatRunning = false
@@ -5329,6 +5771,7 @@ HalloweenTab:CreateSection({
 HalloweenTab:CreateToggle({
     name = "Auto Trick or Treat",
     description = "Automatically visit Halloween houses.",
+    flag = "AutoTrickorTreat",
     value = false,
     callback = function(value)
         AutoTrickOrTreat = value
@@ -5339,16 +5782,15 @@ HalloweenTab:CreateToggle({
     end,
 })
 
-
 local HallowLordRunning = false
 local HallowLordToken = 0
 
-local function HallowLordGetRoot()
+function HallowLordGetRoot()
     local character = LocalPlayer.Character
     return character and character:FindFirstChild("HumanoidRootPart")
 end
 
-local function HallowLordFindPlatform()
+function HallowLordFindPlatform()
     for _, part in ipairs(
         CollectionService:GetTagged(
             HallowBossConfig.PlatformTag or "BossPlatform"
@@ -5364,7 +5806,7 @@ local function HallowLordFindPlatform()
     return nil
 end
 
-local function HallowLordTeleportHalloween()
+function HallowLordTeleportHalloween()
     local ok, result = pcall(function()
         return TravelRemote:InvokeServer({
             Source = "Portal",
@@ -5381,7 +5823,7 @@ local function HallowLordTeleportHalloween()
     return island ~= nil
 end
 
-local function HallowLordTeleportBoss()
+function HallowLordTeleportBoss()
     local platform = HallowLordFindPlatform()
     local root = HallowLordGetRoot()
 
@@ -5399,7 +5841,7 @@ local function HallowLordTeleportBoss()
     return true
 end
 
-local function HallowLordStart(token)
+function HallowLordStart(token)
     if not HallowLordTeleportHalloween() then
         warn("[AutoHallowLord] Halloween teleport failed.")
         return
@@ -5438,7 +5880,7 @@ local function HallowLordStart(token)
     end
 end
 
-local function HallowLordSetEnabled(enabled)
+function HallowLordSetEnabled(enabled)
     OTC.Config.AutoBeatHallowLord = enabled
     HallowLordRunning = enabled
     HallowLordToken += 1
@@ -5463,17 +5905,17 @@ local function HallowLordSetEnabled(enabled)
     end
 end
 
-
 HalloweenTab:CreateToggle({
     name = "Auto Beat Hallow Lord",
     description = "Teleport to Halloween and fight Hallow Lord automatically",
+    flag = "AutoBeatHallowLord",
     value = OTC.Config.AutoBeatHallowLord,
     callback = function(value)
         HallowLordSetEnabled(value)
     end
 })
 
-local AutoBuyHalloweenShop = {
+AutoBuyHalloweenShop = {
     Running = false,
     Token = 0,
     Delay = 1.2
@@ -5522,7 +5964,7 @@ function runAutoBuyHalloweenShop(token)
         end
     end
 
-    local function processItems(items, isLimited)
+    function processItems(items, isLimited)
         for _, item in ipairs(items) do
             if not AutoBuyHalloweenShop.Running
                 or token ~= AutoBuyHalloweenShop.Token then
@@ -5593,6 +6035,7 @@ end
 HalloweenTab:CreateToggle({
     name = "Auto Buy Halloween Shop",
     description = "Buy limited-stock items first, then unlimited items",
+    flag = "AutoBuyHalloweenShop",
     value = OTC.Config.AutoBuyHalloweenShop,
 
     callback = function(value)
@@ -5616,3 +6059,2062 @@ HalloweenTab:CreateToggle({
         end)
     end
 })
+
+
+do
+    local DungeonRunning = false
+    local DungeonBusy = false
+    local DungeonToken = 0
+    local DungeonAttackDelay = 0.01
+    local DungeonAutoDodge = true
+    local DungeonDodgeCooldown = 0.65
+
+    local LastMobDodge = 0
+    local LastBossDodge = 0
+
+    local MobDodgeConnections = {}
+    local BossDodgeConnections = {}
+
+    local BlessingConnection
+    local LastBlessingOffer
+    local LastClearedRoom
+    local LastRoomChange
+
+    local BlessingPriority = {
+        IronCape = 100,
+        VampireBite = 95,
+        GregSlayer = 90,
+        BatBane = 80,
+        ChestCracker = 75,
+        PetFury = 70,
+        BusyPaws = 60,
+        ThickFur = 55,
+        CandySack = 40,
+        LuckyLoot = 35
+    }
+
+    local DungeonController
+    local DungeonContext
+    local DungeonTapController
+    local DungeonTargeting
+    local DungeonMobViews
+    local DungeonRelicView
+
+    local RelicCollecting = false
+
+    function dnotify(title, message, duration)
+        pcall(function()
+            Window:Notify({
+                Title = title,
+                Content = message,
+                Duration = duration or 4
+            })
+        end)
+    end
+
+    local CountGregConfig = require(
+        ReplicatedStorage:WaitForChild("Shared")
+            :WaitForChild("Game")
+            :WaitForChild("HalloweenDungeon")
+            :WaitForChild("Config")
+    )
+
+    local LastCountGregState = nil
+    local LastCountGregNotifySecond = nil
+
+    function FormatCountGregTime(seconds)
+        seconds = math.max(0, math.ceil(seconds))
+
+        return string.format(
+            "%d:%02d",
+            math.floor(seconds / 60),
+            seconds % 60
+        )
+    end
+
+    function GetCountGregCooldown()
+        local replica
+
+        local ok = pcall(function()
+            replica = DataController:GetReplica()
+        end)
+
+        if not ok
+            or not replica
+            or type(replica.Data) ~= "table" then
+            return nil, "Unknown"
+        end
+
+        local data = replica.Data
+        local now = Workspace:GetServerTimeNow()
+
+        local readyAt
+
+        local readyOk, readyResult = pcall(function()
+            return CountGregConfig.ReadyAt(data)
+        end)
+
+        if not readyOk or type(readyResult) ~= "number" then
+            return nil, "Unknown"
+        end
+
+        readyAt = readyResult
+
+        local remaining = math.max(0, readyAt - now)
+
+        local backAt = LocalPlayer:GetAttribute(
+            "HalloweenDungeonBackAt"
+        )
+
+        if type(backAt) == "number" then
+            remaining = math.max(
+                remaining,
+                backAt - now,
+                0
+            )
+        end
+
+        if remaining > 0 then
+            return math.ceil(remaining), "Resting"
+        end
+
+        return 0, "Ready"
+    end
+
+    function UpdateCountGregCooldown()
+        local remaining, state = GetCountGregCooldown()
+
+        if remaining == nil then
+            return
+        end
+
+        if state ~= LastCountGregState then
+            LastCountGregState = state
+            LastCountGregNotifySecond = nil
+
+            if state == "Resting" then
+                dnotify(
+                    "Count Greg",
+                    "The Count rests "
+                        .. FormatCountGregTime(remaining),
+                    5
+                )
+            else
+                dnotify(
+                    "Count Greg",
+                    "Cooldown finished! Count Greg is ready.",
+                    5
+                )
+            end
+        end
+
+        if state == "Resting" then
+            local shouldNotify =
+                remaining % 60 == 0
+                or remaining <= 10
+
+            if shouldNotify
+                and remaining ~= LastCountGregNotifySecond then
+                LastCountGregNotifySecond = remaining
+
+                dnotify(
+                    "Count Greg Cooldown",
+                    "The Count rests "
+                        .. FormatCountGregTime(remaining)
+                        .. " remaining.",
+                    3
+                )
+            end
+        end
+    end
+
+    task.spawn(function()
+        while not Destroyed do
+            pcall(UpdateCountGregCooldown)
+            task.wait(1)
+        end
+    end)
+
+    function dwait(seconds, token)
+        local finish = os.clock() + seconds
+
+        while os.clock() < finish do
+            if not DungeonRunning or token ~= DungeonToken then
+                return false
+            end
+
+            task.wait(0.025)
+        end
+
+        return DungeonRunning and token == DungeonToken
+    end
+
+    function dcharacter()
+        local character = LocalPlayer.Character
+
+        if not character then
+            return nil
+        end
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local root = character:FindFirstChild("HumanoidRootPart")
+
+        if not humanoid or humanoid.Health <= 0 or not root then
+            return nil
+        end
+
+        return character, humanoid, root
+    end
+
+    function dposition(object)
+        if not object or not object.Parent then
+            return nil
+        end
+
+        if object:IsA("BasePart") then
+            return object.Position
+        elseif object:IsA("Model") then
+            local ok, pivot = pcall(function()
+                return object:GetPivot()
+            end)
+
+            if ok then
+                return pivot.Position
+            end
+        end
+
+        return nil
+    end
+
+    function dteleport(target)
+        local _, _, root = dcharacter()
+
+        if not root then
+            return false
+        end
+
+        local cf
+
+        if typeof(target) == "CFrame" then
+            cf = target
+        elseif typeof(target) == "Vector3" then
+            cf = CFrame.new(target)
+        elseif typeof(target) == "Instance" then
+            if target:IsA("BasePart") then
+                cf = target.CFrame
+            elseif target:IsA("Model") then
+                cf = target:GetPivot()
+            end
+        end
+
+        if not cf then
+            return false
+        end
+
+        root.CFrame = cf * CFrame.new(0, 3, 0)
+
+        return true
+    end
+
+    function dload()
+        local ok = pcall(function()
+            local controllers = ReplicatedStorage
+                :WaitForChild("Controllers")
+                :WaitForChild("Game")
+
+            local dungeonModule = controllers
+                :WaitForChild("HalloweenDungeonController")
+
+            DungeonController = require(dungeonModule)
+
+            DungeonTapController = require(
+                controllers:WaitForChild("TapController")
+            )
+
+            DungeonContext = DungeonController.GetContext()
+
+            DungeonTargeting = DungeonContext.Controller("Targeting")
+            DungeonMobViews = DungeonContext.Controller("MobViews")
+
+            local relicModule = dungeonModule:FindFirstChild("RelicView")
+
+            if relicModule and relicModule:IsA("ModuleScript") then
+                DungeonRelicView = require(relicModule)
+
+                if type(DungeonRelicView.Start) == "function" then
+                    DungeonRelicView.Start(DungeonContext)
+                end
+            end
+        end)
+
+        if not ok then
+            return false
+        end
+
+        return DungeonContext ~= nil
+            and DungeonTapController ~= nil
+            and DungeonTargeting ~= nil
+    end
+
+    function dinrun()
+        if not DungeonContext then
+            return false
+        end
+
+        local ok, result = pcall(function()
+            return DungeonContext.InRun()
+        end)
+
+        return ok and result == true
+    end
+
+    function dpick(model)
+        if not model or not model.Parent or not DungeonTargeting then
+            return false
+        end
+
+        local camera = Workspace.CurrentCamera
+
+        if not camera then
+            return false
+        end
+
+        local ok, cf = pcall(function()
+            if model:IsA("Model") then
+                local boundingCF = model:GetBoundingBox()
+                return boundingCF
+            elseif model:IsA("BasePart") then
+                return model.CFrame
+            end
+        end)
+
+        if not ok or not cf then
+            return false
+        end
+
+        local point, visible = camera:WorldToViewportPoint(cf.Position)
+
+        if not visible or point.Z <= 0 then
+            return false
+        end
+
+        return pcall(function()
+            DungeonTargeting.PickAt(
+                Vector2.new(point.X, point.Y),
+                false
+            )
+        end)
+    end
+
+    function dtap()
+        if not DungeonTapController then
+            return false
+        end
+
+        return pcall(function()
+            DungeonTapController:Tap()
+        end)
+    end
+
+    function ddisconnect(list)
+        for _, connection in ipairs(list) do
+            pcall(function()
+                connection:Disconnect()
+            end)
+        end
+
+        table.clear(list)
+    end
+
+    function ddodge(data, isBoss)
+        if not DungeonRunning
+            or not DungeonAutoDodge
+            or type(data) ~= "table" then
+            return
+        end
+
+        local now = os.clock()
+
+        if isBoss then
+            if now - LastBossDodge < DungeonDodgeCooldown then
+                return
+            end
+        else
+            if now - LastMobDodge < DungeonDodgeCooldown then
+                return
+            end
+        end
+
+        local _, humanoid, root = dcharacter()
+
+        if not humanoid or not root then
+            return
+        end
+
+        local destination
+
+        if isBoss then
+            destination = data.Origin
+
+            if typeof(destination) == "CFrame" then
+                destination = destination.Position
+            end
+        else
+            local kind, mode = data.Kind, data.Mode
+
+            if kind == "Bat"
+                or kind == "SwiftBat"
+                or kind == "ThiefBat"
+                or kind == "FeederBat"
+                or kind == "ElderBat"
+                or kind == "BatPinata" then
+                if data.TargetUser ~= LocalPlayer.UserId
+                    or (mode ~= "Telegraph" and mode ~= "Dive") then
+                    return
+                end
+
+                destination = typeof(data.To) == "Vector3"
+                    and data.To
+                    or data.From
+
+            elseif kind == "Mimic"
+                and mode == "Hop"
+                and typeof(data.To) == "Vector3" then
+                if (root.Position - data.To).Magnitude > 22 then
+                    return
+                end
+
+                destination = data.To
+            else
+                return
+            end
+        end
+
+        if isBoss then
+            LastBossDodge = now
+        else
+            LastMobDodge = now
+        end
+
+        local away
+
+        if typeof(destination) == "Vector3" then
+            away = root.Position - destination
+            away = Vector3.new(away.X, 0, away.Z)
+        end
+
+        if not away or away.Magnitude < 0.1 then
+            away = isBoss
+                and root.CFrame.RightVector
+                or -root.CFrame.LookVector
+
+            away = Vector3.new(away.X, 0, away.Z)
+        end
+
+        if away.Magnitude > 0.1 then
+            away = away.Unit
+
+            local side = Vector3.new(-away.Z, 0, away.X)
+
+            local velocity = (
+                away + side * (isBoss and 1 or 0.7)
+            ).Unit * 38
+
+            root.AssemblyLinearVelocity = Vector3.new(
+                velocity.X,
+                isBoss and 30 or 28,
+                velocity.Z
+            )
+        end
+
+        humanoid.Jump = true
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+
+    function dconnectDodge()
+        ddisconnect(MobDodgeConnections)
+        ddisconnect(BossDodgeConnections)
+
+        local service = DungeonContext and DungeonContext.Service
+
+        if not service then
+            return
+        end
+
+        if service.MobState then
+            table.insert(
+                MobDodgeConnections,
+                service.MobState:Connect(function(state)
+                    ddodge(state, false)
+                end)
+            )
+        end
+
+        if service.BossAttack then
+            table.insert(
+                BossDodgeConnections,
+                service.BossAttack:Connect(function(state)
+                    ddodge(state, true)
+                end)
+            )
+        end
+    end
+
+    function dconnectBlessings()
+        if BlessingConnection then
+            BlessingConnection:Disconnect()
+            BlessingConnection = nil
+        end
+
+        local service = DungeonContext and DungeonContext.Service
+
+        if not service
+            or not service.BlessingOffer
+            or not service.BlessingPick then
+            return
+        end
+
+        BlessingConnection = service.BlessingOffer:Connect(function(offer)
+            if not DungeonRunning
+                or type(offer) ~= "table"
+                or type(offer.OfferId) ~= "number"
+                or type(offer.Choices) ~= "table"
+                or LastBlessingOffer == offer.OfferId then
+                return
+            end
+
+            local bestChoice
+            local bestScore = -1
+
+            for _, choice in ipairs(offer.Choices) do
+                if type(choice) == "string" then
+                    local score = BlessingPriority[choice] or 0
+
+                    if score > bestScore then
+                        bestChoice = choice
+                        bestScore = score
+                    end
+                end
+            end
+
+            bestChoice = bestChoice or offer.Choices[1]
+
+            if type(bestChoice) ~= "string" then
+                return
+            end
+
+            LastBlessingOffer = offer.OfferId
+
+            task.delay(0.2, function()
+                if not DungeonRunning then
+                    return
+                end
+
+                local currentService = DungeonContext
+                    and DungeonContext.Service
+
+                if currentService and currentService.BlessingPick then
+                    pcall(function()
+                        currentService.BlessingPick:Fire(
+                            offer.OfferId,
+                            bestChoice
+                        )
+                    end)
+                end
+            end)
+        end)
+    end
+
+    function dmobs()
+        local result = {}
+
+        if not DungeonMobViews
+            or type(DungeonMobViews.Each) ~= "function" then
+            return result
+        end
+
+        pcall(function()
+            DungeonMobViews.Each(function(id, view)
+                if view and view.Model and view.Model.Parent then
+                    local ok, position = pcall(function()
+                        return view:Position()
+                    end)
+
+                    if ok and typeof(position) == "Vector3" then
+                        table.insert(result, {
+                            Id = id,
+                            Model = view.Model,
+                            Position = position
+                        })
+                    end
+                end
+            end)
+        end)
+
+        return result
+    end
+
+    function dattackMobs(token)
+        local service = DungeonContext and DungeonContext.Service
+
+        if not service or not service.SetTarget then
+            return
+        end
+
+        for _, entry in ipairs(dmobs()) do
+            if not DungeonRunning
+                or token ~= DungeonToken
+                or not dinrun() then
+                return
+            end
+
+            local _, _, root = dcharacter()
+
+            if not root then
+                return
+            end
+
+            if not entry.Model
+                or not entry.Model.Parent
+                or (root.Position - entry.Position).Magnitude > 100 then
+                continue
+            end
+
+            pcall(function()
+                service.SetTarget:Fire(entry.Id)
+            end)
+
+            local deadline = os.clock() + 2
+
+            while DungeonRunning
+                and token == DungeonToken
+                and dinrun()
+                and os.clock() < deadline do
+                if not entry.Model.Parent then
+                    break
+                end
+
+                local view
+
+                pcall(function()
+                    view = DungeonMobViews.Get(entry.Id)
+                end)
+
+                if not view then
+                    break
+                end
+
+                local _, _, currentRoot = dcharacter()
+
+                if not currentRoot then
+                    return
+                end
+
+                local pos
+
+                pcall(function()
+                    pos = view:Position()
+                end)
+
+                if typeof(pos) ~= "Vector3"
+                    or (currentRoot.Position - pos).Magnitude > 100 then
+                    break
+                end
+
+                dtap()
+
+                if not dwait(DungeonAttackDelay, token) then
+                    return
+                end
+            end
+        end
+    end
+
+    function drunFolder()
+        if not DungeonContext then
+            return nil
+        end
+
+        local ok, result = pcall(function()
+            return DungeonContext.RunFolder()
+        end)
+
+        return ok and result or nil
+    end
+
+    function dcollectRelics(token)
+        if RelicCollecting or not DungeonRelicView then
+            return
+        end
+
+        RelicCollecting = true
+
+        pcall(function()
+            local runFolder = drunFolder()
+
+            if not runFolder then
+                return
+            end
+
+            local relics = {}
+
+            for _, relic in ipairs(
+                CollectionService:GetTagged("Interactable")
+            ) do
+                if relic:IsA("Model")
+                    and relic:IsDescendantOf(runFolder)
+                    and relic:GetAttribute("InteractableId") == "VampireRelic"
+                    and relic:GetAttribute("RelicId") ~= nil then
+                    local hidden = false
+
+                    if type(DungeonRelicView.Hidden) == "function" then
+                        local hiddenOk, result = pcall(
+                            DungeonRelicView.Hidden,
+                            relic
+                        )
+
+                        hidden = hiddenOk and result == true
+                    end
+
+                    if not hidden then
+                        table.insert(relics, relic)
+                    end
+                end
+            end
+
+            for _, relic in ipairs(relics) do
+                if not DungeonRunning
+                    or token ~= DungeonToken
+                    or not dinrun() then
+                    break
+                end
+
+                if relic.Parent
+                    and relic:IsDescendantOf(runFolder) then
+                    local hidden = false
+
+                    if type(DungeonRelicView.Hidden) == "function" then
+                        local hiddenOk, result = pcall(
+                            DungeonRelicView.Hidden,
+                            relic
+                        )
+
+                        hidden = hiddenOk and result == true
+                    end
+
+                    if not hidden then
+                        local pos = dposition(relic)
+                        local _, _, root = dcharacter()
+
+                        if pos
+                            and root
+                            and (root.Position - pos).Magnitude <= 100 then
+                            pcall(function()
+                                DungeonRelicView.Take(relic)
+                            end)
+
+                            if not dwait(0.3, token) then
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        RelicCollecting = false
+    end
+
+    function dchests()
+        local result = {}
+        local folder = drunFolder()
+
+        if not folder then
+            return result
+        end
+
+        for _, chest in ipairs(
+            CollectionService:GetTagged("HalloweenDungeonChest")
+        ) do
+            if chest:IsA("Model")
+                and chest:IsDescendantOf(folder)
+                and chest:GetAttribute("Opened") ~= true then
+                local hp = chest:GetAttribute("Hp")
+
+                if type(hp) ~= "number" or hp > 0 then
+                    table.insert(result, chest)
+                end
+            end
+        end
+
+        return result
+    end
+
+    function dattackChests(token)
+        local service = DungeonContext and DungeonContext.Service
+
+        for _, chest in ipairs(dchests()) do
+            if not DungeonRunning
+                or token ~= DungeonToken
+                or not dinrun() then
+                return
+            end
+
+            if not chest.Parent then
+                continue
+            end
+
+            local hp = chest:GetAttribute("Hp")
+
+            if chest:GetAttribute("Opened") == true
+                or (type(hp) == "number" and hp <= 0) then
+                continue
+            end
+
+            local pos = dposition(chest)
+
+            if not pos then
+                continue
+            end
+
+            dteleport(pos)
+
+            if not dwait(0.25, token) then
+                return
+            end
+
+            dpick(chest)
+
+            local chestId = chest:GetAttribute("ChestId")
+
+            if type(chestId) == "number"
+                and service
+                and service.ChestTarget then
+                pcall(function()
+                    service.ChestTarget:Fire(chestId)
+                end)
+            end
+
+            while DungeonRunning
+                and token == DungeonToken
+                and dinrun() do
+                if not chest.Parent then
+                    break
+                end
+
+                local currentHp = chest:GetAttribute("Hp")
+
+                if chest:GetAttribute("Opened") == true
+                    or (
+                        type(currentHp) == "number"
+                        and currentHp <= 0
+                    ) then
+                    break
+                end
+
+                dtap()
+
+                if not dwait(DungeonAttackDelay, token) then
+                    return
+                end
+            end
+        end
+    end
+
+    function dboss()
+        local folder = drunFolder()
+
+        if not folder then
+            return nil
+        end
+
+        for _, object in ipairs(folder:GetDescendants()) do
+            if object.Name == "CountGreg"
+                and (
+                    object:IsA("Model")
+                    or object:IsA("BasePart")
+                ) then
+                return object
+            end
+        end
+
+        return nil
+    end
+
+    function dattackBoss(token)
+        local boss = dboss()
+
+        if not boss then
+            return false
+        end
+
+        while DungeonRunning
+            and token == DungeonToken
+            and dinrun() do
+            local gui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            local results = gui and gui:FindFirstChild(
+                "HalloweenDungeonResults"
+            )
+
+            if results and results.Enabled then
+                break
+            end
+
+            local state
+
+            pcall(function()
+                local view = DungeonContext.Controller("BossView")
+
+                if view and type(view.GetDebugState) == "function" then
+                    local debug = view.GetDebugState()
+                    state = debug and debug.State
+                end
+            end)
+
+            if type(state) == "table"
+                and state.Phase == "Swarm" then
+                local id = state.MedallionId
+                local view
+
+                if id
+                    and DungeonMobViews
+                    and type(DungeonMobViews.Get) == "function" then
+                    local ok, result = pcall(function()
+                        return DungeonMobViews.Get(id)
+                    end)
+
+                    if ok then
+                        view = result
+                    end
+                end
+
+                if view and view.Model and view.Model.Parent then
+                    local pos
+
+                    pcall(function()
+                        pos = view:Position()
+                    end)
+
+                    local _, _, root = dcharacter()
+
+                    if pos and root then
+                        if (root.Position - pos).Magnitude > 25 then
+                            dteleport(CFrame.new(pos))
+                        end
+
+                        local service = DungeonContext.Service
+
+                        if service and service.SetTarget then
+                            pcall(function()
+                                service.SetTarget:Fire(id)
+                            end)
+                        end
+
+                        dpick(view.Model)
+                        dtap()
+                    end
+                end
+            else
+                local pos = dposition(boss)
+                local _, _, root = dcharacter()
+
+                if pos then
+                    if root
+                        and (root.Position - pos).Magnitude > 25 then
+                        dteleport(pos)
+                    end
+
+                    dpick(boss)
+                    dtap()
+                end
+            end
+
+            if not dwait(DungeonAttackDelay, token) then
+                break
+            end
+        end
+
+        return true
+    end
+
+    function dclickContinue()
+        local gui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local results = gui and gui:FindFirstChild(
+            "HalloweenDungeonResults"
+        )
+
+        if not results or not results.Enabled then
+            return false
+        end
+
+        local main = results:FindFirstChild("Main", true)
+        local frame = main and main:FindFirstChild("Continue", true)
+        local button = frame and frame:FindFirstChild("Button", true)
+
+        if not button
+            or not button:IsA("TextButton")
+            or not button.Visible then
+            return false
+        end
+
+        if typeof(firesignal) ~= "function" then
+            return false
+        end
+
+        local ok = pcall(function()
+            firesignal(button.MouseButton1Click)
+        end)
+
+        pcall(function()
+            firesignal(button.Activated)
+        end)
+
+        return ok
+    end
+
+    task.spawn(function()
+        while not Destroyed do
+            if dclickContinue() then
+                task.wait(1)
+            else
+                task.wait(0.2)
+            end
+        end
+    end)
+
+    function dprocessRoom(token)
+        if not DungeonRunning
+            or token ~= DungeonToken
+            or not dinrun() then
+            return false
+        end
+
+        local state
+
+        local ok = pcall(function()
+            state = DungeonContext.State()
+        end)
+
+        if not ok or type(state) ~= "table" then
+            return false
+        end
+
+        local room = state.RoomIndex
+        local phase = state.Phase
+        local exitDoor = state.ExitDoor
+
+        if room ~= LastRoomChange then
+            LastRoomChange = room
+            LastClearedRoom = nil
+        end
+
+        if phase ~= "Cleared" then
+            return false
+        end
+
+        if LastClearedRoom == room then
+            return true
+        end
+
+        LastClearedRoom = room
+
+        local destination
+
+        if typeof(exitDoor) == "Vector3" then
+            destination = CFrame.new(exitDoor)
+        elseif typeof(exitDoor) == "CFrame" then
+            destination = exitDoor
+        elseif typeof(exitDoor) == "Instance" then
+            if exitDoor:IsA("BasePart") then
+                destination = exitDoor.CFrame
+            elseif exitDoor:IsA("Model") then
+                destination = exitDoor:GetPivot()
+            end
+        end
+
+        if not destination then
+            return true
+        end
+
+        dteleport(destination)
+
+        local _, humanoid, root = dcharacter()
+
+        if humanoid and root then
+            task.wait(0.2)
+
+            local forward = root.CFrame.LookVector
+
+            local target = root.Position + Vector3.new(
+                forward.X * 25,
+                0,
+                forward.Z * 25
+            )
+
+            humanoid:MoveTo(target)
+
+            local deadline = os.clock() + 4
+
+            while DungeonRunning
+                and token == DungeonToken
+                and os.clock() < deadline do
+                if not root.Parent
+                    or humanoid.Health <= 0
+                    or (root.Position - target).Magnitude <= 2 then
+                    break
+                end
+
+                task.wait(0.1)
+            end
+
+            if root.Parent and humanoid.Health > 0 then
+                humanoid:MoveTo(root.Position)
+            end
+        end
+
+        local deadline = os.clock() + 25
+
+        while DungeonRunning
+            and token == DungeonToken
+            and os.clock() < deadline do
+            if not dinrun() then
+                return true
+            end
+
+            local current
+
+            pcall(function()
+                current = DungeonContext.State()
+            end)
+
+            if type(current) == "table"
+                and (
+                    current.RoomIndex ~= room
+                    or current.Phase ~= "Cleared"
+                ) then
+                return true
+            end
+
+            if not dwait(0.25, token) then
+                return true
+            end
+        end
+
+        return true
+    end
+
+    function dstart(token)
+        if not dload() then
+            dnotify(
+                "OTC Dungeon",
+                "Failed to load dungeon controllers.",
+                5
+            )
+            return
+        end
+
+        dconnectDodge()
+        dconnectBlessings()
+
+        if not dinrun() then
+            local travel = ReplicatedStorage:FindFirstChild("RemoteServices")
+            travel = travel and travel:FindFirstChild("IslandService")
+            travel = travel and travel:FindFirstChild("RF")
+            travel = travel and travel:FindFirstChild("Travel")
+
+            if travel then
+                pcall(function()
+                    travel:InvokeServer({
+                        Source = "Portal",
+                        Island = "Halloween"
+                    })
+                end)
+
+                if not dwait(3, token) then
+                    return
+                end
+            end
+
+            local zone
+
+            for _, candidate in ipairs(
+                CollectionService:GetTagged("HalloweenDungeonCircle")
+            ) do
+                local candidateZone = candidate:FindFirstChild(
+                    "Zone",
+                    true
+                )
+
+                if candidateZone and candidateZone:IsA("BasePart") then
+                    zone = candidateZone
+                    break
+                end
+            end
+
+            if zone then
+                dteleport(zone.CFrame)
+
+                for _ = 1, 30 do
+                    if not dwait(1, token) then
+                        return
+                    end
+
+                    if dinrun() then
+                        break
+                    end
+                end
+
+                if not dinrun() then
+                    dnotify(
+                        "OTC Dungeon",
+                        "Dungeon did not start.",
+                        6
+                    )
+                    return
+                end
+            elseif not dinrun() then
+                dnotify(
+                    "OTC Dungeon",
+                    "Dungeon entry circle not found.",
+                    5
+                )
+                return
+            end
+        end
+
+        while DungeonRunning and token == DungeonToken do
+            if not dinrun() then
+                if not dwait(0.5, token) then
+                    break
+                end
+            else
+                if dprocessRoom(token) then
+                    if not dwait(0.2, token) then
+                        break
+                    end
+
+                    continue
+                end
+
+                dcollectRelics(token)
+
+                if not DungeonRunning or token ~= DungeonToken then
+                    break
+                end
+
+                dattackMobs(token)
+
+                if not DungeonRunning or token ~= DungeonToken then
+                    break
+                end
+
+                dattackChests(token)
+
+                if not DungeonRunning or token ~= DungeonToken then
+                    break
+                end
+
+                if dboss() then
+                    dattackBoss(token)
+                end
+
+                dclickContinue()
+
+                if not dwait(0.1, token) then
+                    break
+                end
+            end
+        end
+
+        ddisconnect(MobDodgeConnections)
+        ddisconnect(BossDodgeConnections)
+
+        if BlessingConnection then
+            BlessingConnection:Disconnect()
+            BlessingConnection = nil
+        end
+    end
+
+    HalloweenTab:CreateSection({
+        name = "▶ Dungeon"
+    })
+
+    HalloweenTab:CreateToggle({
+        name = "Auto Finish Dungeon",
+        description = "Automatically clear dungeon rooms, attack chests and mobs.",
+        flag = "OTCAutoFinishDungeon",
+        value = false,
+
+        callback = function(value)
+            if not value then
+                DungeonRunning = false
+                DungeonToken += 1
+
+                ddisconnect(MobDodgeConnections)
+                ddisconnect(BossDodgeConnections)
+
+                if BlessingConnection then
+                    BlessingConnection:Disconnect()
+                    BlessingConnection = nil
+                end
+
+                LastBlessingOffer = nil
+                LastClearedRoom = nil
+                LastRoomChange = nil
+
+                if DungeonBusy then
+                    dnotify(
+                        "OTC Dungeon",
+                        "Automation stopped.",
+                        4
+                    )
+                end
+
+                return
+            end
+
+            local remaining, state = GetCountGregCooldown()
+
+            if remaining == nil then
+                dnotify(
+                    "OTC Dungeon",
+                    "Unable to read Count Greg's cooldown.",
+                    5
+                )
+                return
+            end
+
+            if state == "Resting" and remaining > 0 then
+                dnotify(
+                    "OTC Dungeon",
+                    "The Count rests "
+                        .. FormatCountGregTime(remaining)
+                        .. ".",
+                    5
+                )
+                return
+            end
+
+            if DungeonBusy then
+                dnotify(
+                    "OTC Dungeon",
+                    "Already running.",
+                    3
+                )
+                return
+            end
+
+            DungeonRunning = true
+            DungeonToken += 1
+
+            local token = DungeonToken
+
+            DungeonBusy = true
+
+            dnotify(
+                "OTC Dungeon",
+                "Automation started.",
+                4
+            )
+
+            task.spawn(function()
+                local ok, err = pcall(function()
+                    dstart(token)
+                end)
+
+                DungeonRunning = false
+                DungeonBusy = false
+
+                ddisconnect(MobDodgeConnections)
+                ddisconnect(BossDodgeConnections)
+
+                if BlessingConnection then
+                    BlessingConnection:Disconnect()
+                    BlessingConnection = nil
+                end
+
+                if not ok then
+                    dnotify(
+                        "OTC Dungeon Error",
+                        tostring(err),
+                        6
+                    )
+                else
+                    dnotify(
+                        "OTC Dungeon",
+                        "Automation finished.",
+                        5
+                    )
+                end
+            end)
+        end
+    })
+
+    HalloweenTab:CreateSlider({
+        name = "Dungeon Attack Delay",
+        description = "Delay between taps while attacking dungeon targets.",
+        range = {0.01, 0.5},
+        increment = 0.01,
+        suffix = "s",
+        value = 0.01,
+        flag = "OTCDungeonAttackDelay",
+
+        callback = function(value)
+            DungeonAttackDelay = value
+        end
+    })
+
+    HalloweenTab:CreateToggle({
+        name = "Auto Dodge Dungeon Attacks",
+        description = "Attempt to dodge bat and boss attacks.",
+        flag = "OTCDungeonAutoDodge",
+        value = true,
+
+        callback = function(value)
+            DungeonAutoDodge = value
+        end
+    })
+
+    HalloweenTab:CreateSlider({
+        name = "Dungeon Dodge Cooldown",
+        description = "Minimum delay between automatic dodge attempts.",
+        range = {0.2, 1.5},
+        increment = 0.05,
+        suffix = "s",
+        value = 0.65,
+        flag = "OTCDungeonDodgeCooldown",
+
+        callback = function(value)
+            DungeonDodgeCooldown = value
+        end
+    })
+end
+
+local WebhookURL = ""
+local AvatarURL = "https://cdn.discordapp.com/avatars/1416562431882432666/ca20c1ec7d67590754fca8f0b109f9d0.webp?animated=false&size=2048"
+
+local MinimumOneIn = 1000
+local DiscordUserID = ""
+
+local SendWebhookEnabled = true
+local SendWebhookWithMentionEnabled = true
+
+function getPetImage(petName)
+    local petData = PetVisualConfig[petName]
+
+    if type(petData) ~= "table" then
+        return nil
+    end
+
+    local image = petData.Image
+
+    if type(image) ~= "string" or image == "" then
+        return nil
+    end
+
+    local assetId = image:match("rbxassetid://(%d+)")
+        or image:match("/image/(%d+)")
+
+    if not assetId then
+        assetId = image:match("(%d+)")
+    end
+
+    if not assetId then
+        return nil
+    end
+
+    return "https://ps99.biggamesapi.io/image/" .. assetId
+end
+
+function getCalculatedOneIn(pet)
+    if type(pet) ~= "table" then
+        return nil
+    end
+
+    local baseOneIn = tonumber(pet.OneIn)
+
+    if not baseOneIn or baseOneIn < 1 then
+        return nil
+    end
+
+    local tier = pet.Tier
+    local mutation = pet.Mutation
+
+    local tierFactor = 1
+    local mutationFactor = 1
+
+    if type(tier) == "string" then
+        tierFactor = PetOdds.TierFactors[tier] or 1
+    end
+
+    if type(mutation) == "string"
+        and mutation ~= ""
+        and mutation ~= "None" then
+        mutationFactor = PetOdds.MutationFactors[mutation] or 1
+    end
+
+    return baseOneIn * tierFactor * mutationFactor
+end
+
+function passesOneInFilter(pet)
+    local oneIn = getCalculatedOneIn(pet)
+
+    return oneIn ~= nil and oneIn >= MinimumOneIn
+end
+
+local RarityColors = {
+    Basic = 0xAAAAAA,
+    Common = 0xBFC5CC,
+    Rare = 0x3498DB,
+    Epic = 0x9B59B6,
+    Legendary = 0xF1C40F,
+    Mythical = 0xE91E63,
+    ["Secret I"] = 0xE74C3C,
+    ["Secret II"] = 0xFF1744,
+    ["Secret III"] = 0xB71C1C,
+    ["Secret X"] = 0xFF00FF
+}
+
+function getEmbedColor(rarity)
+    if type(rarity) ~= "string" then
+        return 0x2F3136
+    end
+
+    if RarityColors[rarity] then
+        return RarityColors[rarity]
+    end
+
+    if rarity:sub(1, 6) == "Secret" then
+        return 0xE74C3C
+    end
+
+    return 0x2F3136
+end
+
+function safeString(value, fallback)
+    if value == nil then
+        return fallback or "Unknown"
+    end
+
+    return tostring(value)
+end
+
+function abbreviateNumber(value)
+    local number = tonumber(value)
+
+    if not number then
+        return safeString(value, "0")
+    end
+
+    local suffixes = {
+        {1e33, "Dc"},
+        {1e30, "No"},
+        {1e27, "Oc"},
+        {1e24, "Sp"},
+        {1e21, "Sx"},
+        {1e18, "Qi"},
+        {1e15, "Qa"},
+        {1e12, "T"},
+        {1e9, "B"},
+        {1e6, "M"},
+        {1e3, "K"}
+    }
+
+    for _, suffix in ipairs(suffixes) do
+        if math.abs(number) >= suffix[1] then
+            local formatted = string.format("%.2f", number / suffix[1])
+            formatted = formatted:gsub("%.?0+$", "")
+            return formatted .. suffix[2]
+        end
+    end
+
+    return tostring(math.floor(number))
+end
+
+function sendWebhook(embed, content)
+    if not SendWebhookEnabled then
+        return false
+    end
+
+    if type(WebhookURL) ~= "string"
+        or WebhookURL == "" then
+        warn("[OTC] Webhook URL is empty.")
+        return false
+    end
+
+    local httpRequest = request
+        or http_request
+        or (syn and syn.request)
+
+    if type(httpRequest) ~= "function" then
+        warn("[OTC] HTTP request function not available.")
+        return false
+    end
+
+    local payload = {
+        username = "OTC",
+        avatar_url = AvatarURL,
+        embeds = {embed}
+    }
+
+    if content
+        and SendWebhookWithMentionEnabled
+        and DiscordUserID ~= "" then
+        payload.content = content
+        payload.allowed_mentions = {
+            parse = {},
+            users = {DiscordUserID}
+        }
+    end
+
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = WebhookURL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
+
+    if not success then
+        warn("[OTC] Webhook error:", response)
+        return false
+    end
+
+    if response and response.StatusCode
+        and response.StatusCode >= 400 then
+        warn("[OTC] Discord returned:", response.StatusCode, response.Body)
+        return false
+    end
+
+    return true
+end
+
+function getUserStats()
+    local success, replica = pcall(function()
+        local controller = require(
+            ReplicatedStorage
+                :WaitForChild("Controllers")
+                :WaitForChild("Core")
+                :WaitForChild("DataController")
+        )
+
+        return controller:GetReplica()
+    end)
+
+    if not success or not replica
+        or type(replica.Data) ~= "table" then
+        return {
+            Playtime = "Unknown",
+            Hatches = "Unknown",
+            Clicks = "Unknown",
+            Gems = "Unknown",
+            Coins = "Unknown",
+            Rebirths = "Unknown"
+        }
+    end
+
+    local data = replica.Data
+    local meta = data.Meta or {}
+    local statistics = data.Statistics or {}
+    local currencies = data.Currencies or {}
+
+    local seconds = tonumber(meta.Playtime)
+    local playtime = "Unknown"
+
+    if seconds then
+        seconds = math.max(0, math.floor(seconds))
+
+        local hours = math.floor(seconds / 3600)
+        local minutes = math.floor((seconds % 3600) / 60)
+
+        playtime = string.format("%dh %dm", hours, minutes)
+    end
+
+    return {
+        Playtime = playtime,
+        Hatches = safeString(statistics.EggsOpened, "0"),
+        Clicks = safeString(statistics.ActualTaps, "0"),
+        Gems = abbreviateNumber(currencies.Gems or 0),
+        Coins = abbreviateNumber(currencies.Coins or 0),
+        Rebirths = abbreviateNumber(statistics.Rebirths or 0)
+    }
+end
+
+function getSecretMention(rarity)
+    if not SendWebhookWithMentionEnabled then
+        return nil
+    end
+
+    if DiscordUserID == "" then
+        return nil
+    end
+
+    if type(rarity) == "string"
+        and rarity:sub(1, 6) == "Secret" then
+        return "<@" .. DiscordUserID .. ">"
+    end
+
+    return nil
+end
+
+function sendOfflineHatch(data)
+    if type(data) ~= "table" then
+        return
+    end
+
+    local entries = data.Entries or {}
+    local keptEntries = {}
+
+    for _, entry in ipairs(entries) do
+        if type(entry) == "table"
+            and entry.AutoDeleted ~= true
+            and passesOneInFilter(entry) then
+            table.insert(keptEntries, entry)
+        end
+    end
+
+    if #keptEntries == 0 then
+        return
+    end
+
+    local fields = {
+        {
+            name = "🥚 Eggs Hatched",
+            value = "`" .. safeString(data.Hatched, "0") .. "`",
+            inline = true
+        },
+        {
+            name = "🥚 Egg",
+            value = "`" .. safeString(keptEntries[1].Egg, "Unknown Egg") .. "`",
+            inline = true
+        },
+        {
+            name = "✅ Kept",
+            value = "`" .. safeString(data.Kept, tostring(#keptEntries)) .. "`",
+            inline = true
+        }
+    }
+
+    if data.Earned ~= nil then
+        table.insert(fields, {
+            name = "💰 Earned",
+            value = "`" .. safeString(data.Earned, "0") .. "`",
+            inline = true
+        })
+    end
+
+    for index, entry in ipairs(keptEntries) do
+        if index > 20 then
+            table.insert(fields, {
+                name = "➕ More Pets",
+                value = "`" .. tostring(#keptEntries - 20) .. " more entries`",
+                inline = false
+            })
+            break
+        end
+
+        local calculatedOneIn = getCalculatedOneIn(entry)
+
+        local details = {
+            "✨ **Rarity:** `" .. safeString(entry.Rarity, "Unknown") .. "`",
+            "💎 **Tier:** `" .. safeString(entry.Tier, "Normal") .. "`",
+            "🍀 **Chance:** `1 in " .. tostring(calculatedOneIn or entry.OneIn or "Unknown") .. "`",
+            "🔢 **Count:** `" .. safeString(entry.Count, "1") .. "`"
+        }
+
+        local mutation = safeString(entry.Mutation, "None")
+
+        if mutation ~= "None" and mutation ~= "" then
+            table.insert(
+                details,
+                "🧬 **Mutation:** `" .. mutation .. "`"
+            )
+        end
+
+        table.insert(fields, {
+            name = "🐾 " .. safeString(entry.Name, "Unknown Pet"),
+            value = table.concat(details, "\n"),
+            inline = false
+        })
+    end
+
+    local embed = {
+        author = {
+            name = "OTC",
+            icon_url = AvatarURL
+        },
+        title = "Offline Hatch Results",
+        description = "📋・**Offline Info**",
+        color = 0x5865F2,
+        fields = fields,
+        footer = {
+            text = "OTC • Tap Simulator: Reborn"
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }
+
+    local petImage = getPetImage(
+        safeString(keptEntries[1].Name, "")
+    )
+
+    if petImage then
+        embed.thumbnail = {
+            url = petImage
+        }
+    end
+
+    local mention
+
+    for _, entry in ipairs(keptEntries) do
+        mention = getSecretMention(safeString(entry.Rarity, ""))
+
+        if mention then
+            break
+        end
+    end
+
+    sendWebhook(embed, mention)
+end
+
+function sendNormalHatch(result)
+    if type(result) ~= "table" or result.Success == false then
+        return
+    end
+
+    local pets = result.Pets
+
+    if type(pets) ~= "table" or #pets == 0 then
+        return
+    end
+
+    local stats = getUserStats()
+
+    for _, pet in ipairs(pets) do
+        if type(pet) == "table" and passesOneInFilter(pet) then
+            local petName = safeString(pet.Name, "Unknown Pet")
+            local rarity = safeString(pet.Rarity, "Unknown")
+            local tier = safeString(pet.Tier, "Normal")
+            local mutation = safeString(pet.Mutation, "None")
+
+            local calculatedOneIn = getCalculatedOneIn(pet)
+            local chance = calculatedOneIn
+                and ("1 in " .. tostring(calculatedOneIn))
+                or ("1 in " .. safeString(pet.OneIn, "Unknown"))
+
+            local descriptionParts = {
+                "🎉・**Hatch Info**",
+                "- 🥚 **Egg:** `" .. safeString(result.Egg, "Unknown Egg") .. "`",
+                "- 🏆 **Chance:** `" .. chance .. "`",
+                "- 🎁 **Rarity:** `" .. rarity .. "`",
+                "- 🔢 **Tier:** `" .. tier .. "`",
+                "- 💪 **Power:** `" .. safeString(pet.Power, "Unknown") .. "`"
+            }
+
+            if mutation ~= "None" and mutation ~= "" then
+                table.insert(
+                    descriptionParts,
+                    "- 🧬 **Mutation:** `" .. mutation .. "`"
+                )
+            end
+
+            table.insert(descriptionParts, "")
+            table.insert(descriptionParts, "👤・**User Info**")
+            table.insert(descriptionParts, "- 🕒 **Playtime:** `" .. stats.Playtime .. "`")
+            table.insert(descriptionParts, "- 🥚 **Hatches:** `" .. stats.Hatches .. "`")
+            table.insert(descriptionParts, "- 👆 **Clicks:** `" .. stats.Clicks .. "`")
+            table.insert(descriptionParts, "- 💎 **Gems:** `" .. stats.Gems .. "`")
+            table.insert(descriptionParts, "- 💰 **Coins:** `" .. stats.Coins .. "`")
+            table.insert(descriptionParts, "- 🔄 **Rebirths:** `" .. stats.Rebirths .. "`")
+
+            local censoredName = "||" .. LocalPlayer.Name .. "||"
+            local title
+
+            if rarity:sub(1, 6) == "Secret" then
+                title = "WOW! " .. censoredName
+                    .. " hatched a " .. petName .. "! 🎉 Congrats!"
+            else
+                title = censoredName .. " hatched a " .. petName
+            end
+
+            local embed = {
+                author = {
+                    name = "OTC",
+                    icon_url = AvatarURL
+                },
+                title = title,
+                description = table.concat(descriptionParts, "\n"),
+                color = getEmbedColor(rarity),
+                timestamp = DateTime.now():ToIsoDate()
+            }
+
+            local petImage = getPetImage(petName)
+
+            if petImage then
+                embed.thumbnail = {
+                    url = petImage
+                }
+            end
+
+            sendWebhook(embed, getSecretMention(rarity))
+        end
+    end
+end
+
+function makeOfflineSignature(data)
+    local entries = {}
+
+    for _, entry in ipairs(data.Entries or {}) do
+        table.insert(entries, {
+            Egg = entry.Egg,
+            Name = entry.Name,
+            Tier = entry.Tier,
+            Rarity = entry.Rarity,
+            OneIn = entry.OneIn,
+            Mutation = entry.Mutation,
+            AutoDeleted = entry.AutoDeleted,
+            Count = entry.Count
+        })
+    end
+
+    return HttpService:JSONEncode({
+        Id = data.Id,
+        Hatched = data.Hatched,
+        Kept = data.Kept,
+        Deleted = data.Deleted,
+        Earned = data.Earned,
+        Reason = data.Reason,
+        Entries = entries
+    })
+end
+
+function startOfflineHatchWatcher()
+    local DataController = require(
+        ReplicatedStorage
+            :WaitForChild("Controllers")
+            :WaitForChild("Core")
+            :WaitForChild("DataController")
+    )
+
+    local lastSignature = nil
+
+    task.spawn(function()
+        while true do
+            local success, replica = pcall(function()
+                return DataController:GetReplica()
+            end)
+
+            if success and replica and replica.Data then
+                local offline = replica.Data.Offline
+                local pending = offline and offline.HatchPending
+
+                if type(pending) == "table"
+                    and type(pending.Entries) == "table"
+                    and #pending.Entries > 0 then
+
+                    local signatureOk, signature = pcall(
+                        makeOfflineSignature,
+                        pending
+                    )
+
+                    if signatureOk and signature ~= lastSignature then
+                        lastSignature = signature
+
+                        task.spawn(function()
+                            sendOfflineHatch(pending)
+                        end)
+                    end
+                else
+                    lastSignature = nil
+                end
+            end
+
+            task.wait(0.5)
+        end
+    end)
+end
+
+function startNormalHatchWatcher()
+    local success, eggService = pcall(function()
+        return ReplicatedStorage
+            :WaitForChild("RemoteServices")
+            :WaitForChild("EggService")
+            :WaitForChild("RE")
+            :WaitForChild("EggHatchResult")
+    end)
+
+    if not success or not eggService then
+        warn("[OTC] EggHatchResult not found.")
+        return
+    end
+
+    if eggService:IsA("RemoteEvent") then
+        eggService.OnClientEvent:Connect(function(result)
+            task.defer(function()
+                sendNormalHatch(result)
+            end)
+        end)
+    else
+        warn("[OTC] EggHatchResult is not a RemoteEvent.")
+    end
+end
+
+WebhookTab:CreateInput({
+    Name = "Webhook",
+    PlaceholderText = "Discord Webhook URL",
+    CurrentValue = "",
+    RemoveTextAfterFocusLost = false,
+    Flag = "WebhookURL",
+    Callback = function(Value)
+        WebhookURL = Value
+    end
+})
+
+WebhookTab:CreateInput({
+    Name = "Discord User Id",
+    PlaceholderText = "Discord User ID",
+    CurrentValue = "",
+    RemoveTextAfterFocusLost = false,
+    Flag = "DiscordUserID",
+    Callback = function(Value)
+        DiscordUserID = Value
+    end
+})
+
+WebhookTab:CreateInput({
+    Name = "Base Chance",
+    PlaceholderText = "1000",
+    CurrentValue = "1000",
+    RemoveTextAfterFocusLost = false,
+    Flag = "BaseChance",
+    Callback = function(Value)
+        local number = tonumber(Value)
+
+        if number and number >= 1 then
+            MinimumOneIn = math.floor(number)
+        end
+    end
+})
+
+WebhookTab:CreateToggle({
+    Name = "Send Webhook with Mention",
+    CurrentValue = true,
+    Flag = "SendWebhookWithMention",
+    Callback = function(Value)
+        SendWebhookWithMentionEnabled = Value
+    end
+})
+
+WebhookTab:CreateToggle({
+    Name = "Send Webhook",
+    CurrentValue = true,
+    Flag = "SendWebhook",
+    Callback = function(Value)
+        SendWebhookEnabled = Value
+    end
+})
+
+startOfflineHatchWatcher()
+startNormalHatchWatcher()
