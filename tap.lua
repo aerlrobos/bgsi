@@ -6363,11 +6363,6 @@ MinigamesTab:CreateToggle({
 
 local LateState = {}
 
-LateState.FishingFolder
-LateState.HeavenFalls
-LateState.Fisherman
-LateState.Pond
-
 LateState.Spot = FishingConfig.Spots.HeavenFalls
 LateState.MIN_ZONE_LUCK = 2.5
 
