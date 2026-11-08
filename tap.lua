@@ -2681,7 +2681,7 @@ WorldTab:CreateToggle({
 })
 
 OTC.Runtime.PetOptions = {"None"}
-OTC.Runtime.PetDropdown
+OTC.Runtime.PetDropdown = nil
 OTC.Runtime.SelectedPetName = ""
 OTC.Runtime.IsRefreshingPets = false
 
@@ -3117,7 +3117,7 @@ task.spawn(function()
 end)
 
 OTC.Runtime.DiamondPetOptions = {"None"}
-OTC.Runtime.DiamondPetDropdown
+OTC.Runtime.DiamondPetDropdown = nil
 OTC.Runtime.SelectedDiamondPetName = ""
 OTC.Runtime.IsRefreshingDiamondPets = false
 
@@ -3523,7 +3523,7 @@ PetsTab:CreateSection({
 })
 
 OTC.Runtime.RainbowPetOptions = {"None"}
-OTC.Runtime.RainbowPetDropdown
+OTC.Runtime.RainbowPetDropdown = nil
 OTC.Runtime.SelectedRainbowPetName = ""
 OTC.Runtime.IsRefreshingRainbowPets = false
 
@@ -3959,10 +3959,10 @@ OTC.Config.SelectedEnchantPet = OTC.Config.SelectedEnchantPet or ""
 OTC.Config.SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot or 1
 OTC.Config.SelectedEnchantTypes = OTC.Config.SelectedEnchantTypes or {}
 
-OTC.Runtime.EnchantPetDropdown
+OTC.Runtime.EnchantPetDropdown = nil
 OTC.Runtime.EnchantPetOptions = {}
 OTC.Runtime.EnchantPetIds = {}
-OTC.Runtime.SelectedEnchantPetId
+OTC.Runtime.SelectedEnchantPetId = nil
 OTC.Runtime.SelectedEnchantTypes = {}
 OTC.Runtime.SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot
 OTC.Runtime.AutoEnchantToken = 0
@@ -4523,7 +4523,7 @@ for _, option in ipairs(OTC.Runtime.EggOptions) do
     end
 end
 
-OTC.Runtime.SelectedEggOption
+OTC.Runtime.SelectedEggOption = nil
 
 for option, eggName in pairs(OTC.Runtime.EggOptionToName) do
     if eggName == OTC.Config.SelectedEgg then
