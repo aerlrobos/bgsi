@@ -71,6 +71,8 @@ local OTC = {
     },
 }
 
+OTC.State = OTC.State or {}
+
 local UpgradeConfig = require(
     ReplicatedStorage
         .Shared
@@ -965,9 +967,9 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AntiAFKEnabled = false
-local AntiAFKConnection = nil
-local AntiAFKToken = 0
+OTC.State.AntiAFKEnabled = false
+OTC.State.AntiAFKConnection = nil
+OTC.State.AntiAFKToken = 0
 
 HomeTab:CreateToggle({
     Name = "Anti AFK",
@@ -975,14 +977,14 @@ HomeTab:CreateToggle({
     Flag = "AntiAFK",
     Description = "Anti AFK.",
     Callback = function(Value)
-        AntiAFKEnabled = Value
-        AntiAFKToken += 1
+        OTC.State.AntiAFKEnabled = Value
+        OTC.State.AntiAFKToken += 1
 
-        local CurrentToken = AntiAFKToken
+        local CurrentToken = OTC.State.AntiAFKToken
 
-        if AntiAFKConnection then
-            AntiAFKConnection:Disconnect()
-            AntiAFKConnection = nil
+        if OTC.State.AntiAFKConnection then
+            OTC.State.AntiAFKConnection:Disconnect()
+            OTC.State.AntiAFKConnection = nil
         end
 
         if not Value then
@@ -993,8 +995,8 @@ HomeTab:CreateToggle({
         local VirtualUser = game:GetService("VirtualUser")
         local Player = Players.LocalPlayer
 
-        AntiAFKConnection = Player.Idled:Connect(function()
-            if not AntiAFKEnabled then
+        OTC.State.AntiAFKConnection = Player.Idled:Connect(function()
+            if not OTC.State.AntiAFKEnabled then
                 return
             end
 
@@ -1005,10 +1007,10 @@ HomeTab:CreateToggle({
         end)
 
         task.spawn(function()
-            while AntiAFKEnabled and AntiAFKToken == CurrentToken do
+            while OTC.State.AntiAFKEnabled and OTC.State.AntiAFKToken == CurrentToken do
                 task.wait(300)
 
-                if not AntiAFKEnabled or AntiAFKToken ~= CurrentToken then
+                if not OTC.State.AntiAFKEnabled or OTC.State.AntiAFKToken ~= CurrentToken then
                     break
                 end
 
@@ -1214,8 +1216,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoClaimIndexAll = false
-local IndexClaimSession = 0
+OTC.State.AutoClaimIndexAll = false
+OTC.State.IndexClaimSession = 0
 
 AutoTab:CreateToggle({
     name = "Auto Claim Index All",
@@ -1223,18 +1225,18 @@ AutoTab:CreateToggle({
     flag = "AutoClaimIndexAll",
     value = false,
     callback = function(value)
-        AutoClaimIndexAll = value
-        IndexClaimSession += 1
+        OTC.State.AutoClaimIndexAll = value
+        OTC.State.IndexClaimSession += 1
 
-        local session = IndexClaimSession
+        local session = OTC.State.IndexClaimSession
 
         if not value then
             return
         end
 
         task.spawn(function()
-            while AutoClaimIndexAll
-                and IndexClaimSession == session do
+            while OTC.State.AutoClaimIndexAll
+                and OTC.State.IndexClaimSession == session do
 
                 local success, err = pcall(function()
                     local replica = DataController:GetReplica()
@@ -1248,8 +1250,8 @@ AutoTab:CreateToggle({
                     local claimables = PetIndexCatalog.Claimables(pets)
 
                     for _, item in ipairs(claimables) do
-                        if not AutoClaimIndexAll
-                            or IndexClaimSession ~= session then
+                        if not OTC.State.AutoClaimIndexAll
+                            or OTC.State.IndexClaimSession ~= session then
                             break
                         end
 
@@ -1278,8 +1280,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoBuyDoubleJumps = false
-local DoubleJumpSession = 0
+OTC.State.AutoBuyDoubleJumps = false
+OTC.State.DoubleJumpSession = 0
 
 local DoubleJumpPosition = CFrame.new(
     -98.6733017, -516.033081, -1679.99146,
@@ -1294,18 +1296,18 @@ AutoTab:CreateToggle({
     value = false,
     description = "Automatically teleports to the upgrade and purchases the next available +1 Jump upgrade.",
     callback = function(value)
-        AutoBuyDoubleJumps = value
-        DoubleJumpSession += 1
+        OTC.State.AutoBuyDoubleJumps = value
+        OTC.State.DoubleJumpSession += 1
 
-        local session = DoubleJumpSession
+        local session = OTC.State.DoubleJumpSession
 
         if not value then
             return
         end
 
         task.spawn(function()
-            while AutoBuyDoubleJumps
-                and DoubleJumpSession == session do
+            while OTC.State.AutoBuyDoubleJumps
+                and OTC.State.DoubleJumpSession == session do
 
                 local success, err = pcall(function()
                     local character = LocalPlayer.Character
@@ -1332,8 +1334,8 @@ AutoTab:CreateToggle({
                     local nextPrice = jumpUpgrade.Prices[nextIndex]
 
                     if not nextPrice then
-                        AutoBuyDoubleJumps = false
-                        DoubleJumpSession += 1
+                        OTC.State.AutoBuyDoubleJumps = false
+                        OTC.State.DoubleJumpSession += 1
                         return
                     end
 
@@ -1449,14 +1451,14 @@ function CollectShinyStar(Star)
     end)
 end
 
-local ShinyStarWorkerRunning = false
+OTC.State.ShinyStarWorkerRunning = false
 
 function StartShinyStarCollection()
-    if ShinyStarWorkerRunning then
+    if OTC.State.ShinyStarWorkerRunning then
         return
     end
 
-    ShinyStarWorkerRunning = true
+    OTC.State.ShinyStarWorkerRunning = true
 
     task.spawn(function()
         while OTC.Config.AutoCollectShinyStars do
@@ -1472,7 +1474,7 @@ function StartShinyStarCollection()
             task.wait(0.5)
         end
 
-        ShinyStarWorkerRunning = false
+        OTC.State.ShinyStarWorkerRunning = false
     end)
 end
 
@@ -1490,8 +1492,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-local ClickerChestWorkerRunning = false
-local CurrentClickerChest = nil
+OTC.State.ClickerChestWorkerRunning = false
+OTC.State.CurrentClickerChest = nil
 
 function GetClickerChestFolder()
     return workspace:FindFirstChild("ClickerChest")
@@ -1650,7 +1652,7 @@ function ProcessClickerChest(Model)
         return
     end
 
-    CurrentClickerChest = Model
+    OTC.State.CurrentClickerChest = Model
 
     while OTC.Config.AutoClaimClickerChests do
         if not Model.Parent then
@@ -1687,8 +1689,8 @@ function ProcessClickerChest(Model)
         task.wait(OTC.Config.ClickerChestDelay or 0.5)
     end
 
-    if CurrentClickerChest == Model then
-        CurrentClickerChest = nil
+    if OTC.State.CurrentClickerChest == Model then
+        OTC.State.CurrentClickerChest = nil
     end
 end
 
@@ -1733,11 +1735,11 @@ function ProcessClickerChestsOnIsland(Island)
 end
 
 function StartClickerChestWorker()
-    if ClickerChestWorkerRunning then
+    if OTC.State.ClickerChestWorkerRunning then
         return
     end
 
-    ClickerChestWorkerRunning = true
+    OTC.State.ClickerChestWorkerRunning = true
 
     task.spawn(function()
         while OTC.Config.AutoClaimClickerChests do
@@ -1756,8 +1758,8 @@ function StartClickerChestWorker()
             task.wait(1)
         end
 
-        CurrentClickerChest = nil
-        ClickerChestWorkerRunning = false
+        OTC.State.CurrentClickerChest = nil
+        OTC.State.ClickerChestWorkerRunning = false
     end)
 end
 
@@ -1775,7 +1777,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-local IslandAttackToken = 0
+OTC.State.IslandAttackToken = 0
 
 function getIslandAttackRoot()
     local character = LocalPlayer.Character
@@ -1853,13 +1855,13 @@ function runIslandAttack(token)
     local spotsFolder = Workspace:WaitForChild("IslandBreakableSpots")
 
     while OTC.Config.AutoAttackIslandBreakables
-        and IslandAttackToken == token do
+        and OTC.State.IslandAttackToken == token do
 
         local islands = GetIslandAttackOrder(spotsFolder)
 
         for _, island in ipairs(islands) do
             if not OTC.Config.AutoAttackIslandBreakables
-                or IslandAttackToken ~= token then
+                or OTC.State.IslandAttackToken ~= token then
                 break
             end
 
@@ -1876,7 +1878,7 @@ function runIslandAttack(token)
                     local target = getIslandAttackTarget(spot.Type)
 
                     while OTC.Config.AutoAttackIslandBreakables
-                        and IslandAttackToken == token
+                        and OTC.State.IslandAttackToken == token
                         and not target do
 
                         local root = getIslandAttackRoot()
@@ -1908,7 +1910,7 @@ function runIslandAttack(token)
                     end
 
                     while OTC.Config.AutoAttackIslandBreakables
-                        and IslandAttackToken == token
+                        and OTC.State.IslandAttackToken == token
                         and target
                         and not islandAttackTargetDestroyed(target) do
 
@@ -1959,10 +1961,10 @@ AutoTab:CreateToggle({
     flag = "AutoAttackIslandBreakables",
     callback = function(value)
         OTC.Config.AutoAttackIslandBreakables = value
-        IslandAttackToken += 1
+        OTC.State.IslandAttackToken += 1
 
         if value then
-            local token = IslandAttackToken
+            local token = OTC.State.IslandAttackToken
 
             task.spawn(function()
                 local ok, err = pcall(function()
@@ -1972,7 +1974,7 @@ AutoTab:CreateToggle({
                 if not ok then
                     warn("[OTC] Island attack error:", err)
 
-                    if IslandAttackToken == token then
+                    if OTC.State.IslandAttackToken == token then
                         OTC.Config.AutoAttackIslandBreakables = false
                     end
                 end
@@ -1981,7 +1983,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoClaimChestsRunning = false
+OTC.State.AutoClaimChestsRunning = false
 
 function getReadyTapChest(id)
     local replica = DataController:GetReplica()
@@ -2100,7 +2102,7 @@ function autoClaimChests()
         task.wait(1)
     end
 
-    AutoClaimChestsRunning = false
+    OTC.State.AutoClaimChestsRunning = false
 end
 
 AutoTab:CreateToggle({
@@ -2111,18 +2113,18 @@ AutoTab:CreateToggle({
     Callback = function(value)
         OTC.Config.AutoClaimChests = value
 
-        if value and not AutoClaimChestsRunning then
-            AutoClaimChestsRunning = true
+        if value and not OTC.State.AutoClaimChestsRunning then
+            OTC.State.AutoClaimChestsRunning = true
             task.spawn(autoClaimChests)
         end
     end,
 })
 
-local AutoLuckyDucky = false
+OTC.State.AutoLuckyDucky = false
 
 function StartAutoLuckyDucky()
     task.spawn(function()
-        while AutoLuckyDucky do
+        while OTC.State.AutoLuckyDucky do
             local Success, Caught = pcall(function()
                 return LuckyDuckyController:CatchShown()
             end)
@@ -2141,7 +2143,7 @@ AutoTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoLuckyDucky",
     Callback = function(Value)
-        AutoLuckyDucky = Value
+        OTC.State.AutoLuckyDucky = Value
 
         if Value then
             StartAutoLuckyDucky()
@@ -2149,8 +2151,8 @@ AutoTab:CreateToggle({
     end
 })
 
-local AutoLuckyEggMachine = false
-local LuckyEggMachineToken = 0
+OTC.State.AutoLuckyEggMachine = false
+OTC.State.LuckyEggMachineToken = 0
 
 function TeleportToLuckyEggMachine()
     local Character = LocalPlayer.Character
@@ -2238,11 +2240,11 @@ function ActivateLuckyEggMachine()
 end
 
 function StartAutoLuckyEggMachine()
-    LuckyEggMachineToken += 1
-    local Token = LuckyEggMachineToken
+    OTC.State.LuckyEggMachineToken += 1
+    local Token = OTC.State.LuckyEggMachineToken
 
     task.spawn(function()
-        while AutoLuckyEggMachine and Token == LuckyEggMachineToken do
+        while OTC.State.AutoLuckyEggMachine and Token == OTC.State.LuckyEggMachineToken do
             local Ready = GetLuckyEggStatus()
 
             if Ready then
@@ -2259,12 +2261,12 @@ AutoTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoLuckyEggMachine",
     Callback = function(Value)
-        AutoLuckyEggMachine = Value
+        OTC.State.AutoLuckyEggMachine = Value
 
         if Value then
             StartAutoLuckyEggMachine()
         else
-            LuckyEggMachineToken += 1
+            OTC.State.LuckyEggMachineToken += 1
         end
     end
 })
@@ -2445,8 +2447,8 @@ table.sort(IslandOrder.TimeRift, function(a, b)
         < (RiftIslandConfig.Islands[b].Order or math.huge)
 end)
 
-local UnlockEveryIslandEnabled = false
-local UnlockEveryIslandRunning = false
+OTC.State.UnlockEveryIslandEnabled = false
+OTC.State.UnlockEveryIslandRunning = false
 
 function CrossRiftPortal(Portal)
     local Cylinder = Portal:WaitForChild("Meshes/cool portal_Cylinder.025")
@@ -2502,7 +2504,7 @@ function GetIslandResultEvent(world)
 end
 
 function unlockVisitIsland(islandName, world)
-    if not UnlockEveryIslandEnabled then
+    if not OTC.State.UnlockEveryIslandEnabled then
         return false
     end
 
@@ -2571,12 +2573,12 @@ function unlockVisitIsland(islandName, world)
 
         tween:Play()
 
-        while UnlockEveryIslandEnabled
+        while OTC.State.UnlockEveryIslandEnabled
             and tween.PlaybackState == Enum.PlaybackState.Playing do
             RunService.Heartbeat:Wait()
         end
 
-        if not UnlockEveryIslandEnabled then
+        if not OTC.State.UnlockEveryIslandEnabled then
             tween:Cancel()
         end
 
@@ -2601,7 +2603,7 @@ function unlockVisitIsland(islandName, world)
 
     local deadline = os.clock() + 8
 
-    while UnlockEveryIslandEnabled and os.clock() < deadline do
+    while OTC.State.UnlockEveryIslandEnabled and os.clock() < deadline do
         if result then
             break
         end
@@ -2618,13 +2620,13 @@ function VisitWorldIslands(world)
     local islands = IslandOrder[world]
 
     for _, islandName in ipairs(islands) do
-        if not UnlockEveryIslandEnabled then
+        if not OTC.State.UnlockEveryIslandEnabled then
             break
         end
 
         unlockVisitIsland(islandName, world)
 
-        if UnlockEveryIslandEnabled then
+        if OTC.State.UnlockEveryIslandEnabled then
             task.wait(2)
         end
     end
@@ -2637,13 +2639,13 @@ WorldTab:CreateToggle({
     flag = "UnlockEveryIsland",
 
     callback = function(value)
-        UnlockEveryIslandEnabled = value
+        OTC.State.UnlockEveryIslandEnabled = value
 
-        if not value or UnlockEveryIslandRunning then
+        if not value or OTC.State.UnlockEveryIslandRunning then
             return
         end
 
-        UnlockEveryIslandRunning = true
+        OTC.State.UnlockEveryIslandRunning = true
 
         task.spawn(function()
             local success, err = pcall(function()
@@ -2656,7 +2658,7 @@ WorldTab:CreateToggle({
 
                 VisitWorldIslands("Main")
 
-                if not UnlockEveryIslandEnabled then
+                if not OTC.State.UnlockEveryIslandEnabled then
                     return
                 end
 
@@ -2686,16 +2688,16 @@ WorldTab:CreateToggle({
                 warn("[OTC Islands] Unlock Every Island error:", err)
             end
 
-            UnlockEveryIslandEnabled = false
-            UnlockEveryIslandRunning = false
+            OTC.State.UnlockEveryIslandEnabled = false
+            OTC.State.UnlockEveryIslandRunning = false
         end)
     end,
 })
 
 local PetOptions = {"None"}
 local PetDropdown
-local SelectedPetName = ""
-local IsRefreshingPets = false
+OTC.State.SelectedPetName = ""
+OTC.State.IsRefreshingPets = false
 
 function GetPetName(option)
     if type(option) ~= "string" then
@@ -2736,11 +2738,11 @@ function HasMutation(pet)
 end
 
 function RefreshPets()
-    if IsRefreshingPets then
+    if OTC.State.IsRefreshingPets then
         return
     end
 
-    IsRefreshingPets = true
+    OTC.State.IsRefreshingPets = true
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
@@ -2820,9 +2822,9 @@ function RefreshPets()
 
         local updatedSelection = "None"
 
-        if SelectedPetName ~= "" then
+        if OTC.State.SelectedPetName ~= "" then
             for _, option in ipairs(newOptions) do
-                if GetPetName(option) == SelectedPetName then
+                if GetPetName(option) == OTC.State.SelectedPetName then
                     updatedSelection = option
                     break
                 end
@@ -2830,7 +2832,7 @@ function RefreshPets()
         end
 
         if updatedSelection == "None" then
-            SelectedPetName = ""
+            OTC.State.SelectedPetName = ""
         end
 
         PetOptions = newOptions
@@ -2842,7 +2844,7 @@ function RefreshPets()
         end
     end)
 
-    IsRefreshingPets = false
+    OTC.State.IsRefreshingPets = false
 
     if not success then
         warn("[OTC] Pets refresh error:", err)
@@ -2901,7 +2903,7 @@ PetDropdown = PetsTab:CreateDropdown({
     value = "None",
     flag = "GoldenPetSelection",
     callback = function(value)
-        if IsRefreshingPets then
+        if OTC.State.IsRefreshingPets then
             return
         end
 
@@ -2910,7 +2912,7 @@ PetDropdown = PetsTab:CreateDropdown({
         end
 
         if value == "None" or value == "No pets" then
-            SelectedPetName = ""
+            OTC.State.SelectedPetName = ""
             OTC.Config.SelectedPet = "None"
 
             Window:Notify({
@@ -2923,7 +2925,7 @@ PetDropdown = PetsTab:CreateDropdown({
             return
         end
 
-        SelectedPetName = GetPetName(value)
+        OTC.State.SelectedPetName = GetPetName(value)
         OTC.Config.SelectedPet = value
 
         Window:Notify({
@@ -2982,7 +2984,7 @@ PetsTab:CreateToggle({
         task.spawn(function()
             while OTC.Config.AutoGoldenPets do
                 local success, err = pcall(function()
-                    local selectedName = SelectedPetName
+                    local selectedName = OTC.State.SelectedPetName
 
                     if selectedName == "" then
                         return
@@ -3130,8 +3132,8 @@ end)
 
 local DiamondPetOptions = {"None"}
 local DiamondPetDropdown
-local SelectedDiamondPetName = ""
-local IsRefreshingDiamondPets = false
+OTC.State.SelectedDiamondPetName = ""
+OTC.State.IsRefreshingDiamondPets = false
 
 function GetDiamondPetName(option)
     if type(option) ~= "string" then
@@ -3148,11 +3150,11 @@ function HasDiamondMutation(pet)
 end
 
 function RefreshDiamondPets()
-    if IsRefreshingDiamondPets then
+    if OTC.State.IsRefreshingDiamondPets then
         return
     end
 
-    IsRefreshingDiamondPets = true
+    OTC.State.IsRefreshingDiamondPets = true
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
@@ -3236,9 +3238,9 @@ function RefreshDiamondPets()
 
         local updatedSelection = "None"
 
-        if SelectedDiamondPetName ~= "" then
+        if OTC.State.SelectedDiamondPetName ~= "" then
             for _, option in ipairs(newOptions) do
-                if GetDiamondPetName(option) == SelectedDiamondPetName then
+                if GetDiamondPetName(option) == OTC.State.SelectedDiamondPetName then
                     updatedSelection = option
                     break
                 end
@@ -3246,7 +3248,7 @@ function RefreshDiamondPets()
         end
 
         if updatedSelection == "None" then
-            SelectedDiamondPetName = ""
+            OTC.State.SelectedDiamondPetName = ""
         end
 
         DiamondPetOptions = newOptions
@@ -3258,7 +3260,7 @@ function RefreshDiamondPets()
         end
     end)
 
-    IsRefreshingDiamondPets = false
+    OTC.State.IsRefreshingDiamondPets = false
 
     if not success then
         warn("[OTC Diamond] Pets refresh error:", err)
@@ -3295,7 +3297,7 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
     value = "None",
     flag = "DiamondPetSelection",
     callback = function(value)
-        if IsRefreshingDiamondPets then
+        if OTC.State.IsRefreshingDiamondPets then
             return
         end
 
@@ -3304,7 +3306,7 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
         end
 
         if value == "None" or value == "No pets" then
-            SelectedDiamondPetName = ""
+            OTC.State.SelectedDiamondPetName = ""
             OTC.Config.SelectedDiamondPet = "None"
 
             Window:Notify({
@@ -3317,7 +3319,7 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
             return
         end
 
-        SelectedDiamondPetName = GetDiamondPetName(value)
+        OTC.State.SelectedDiamondPetName = GetDiamondPetName(value)
         OTC.Config.SelectedDiamondPet = value
 
         Window:Notify({
@@ -3379,7 +3381,7 @@ PetsTab:CreateToggle({
 
             while OTC.Config.AutoDiamondPets do
                 local success, err = pcall(function()
-                    local selectedName = SelectedDiamondPetName
+                    local selectedName = OTC.State.SelectedDiamondPetName
 
                     if selectedName == "" then
                         return
@@ -3536,8 +3538,8 @@ PetsTab:CreateSection({
 
 local RainbowPetOptions = {"None"}
 local RainbowPetDropdown
-local SelectedRainbowPetName = ""
-local IsRefreshingRainbowPets = false
+OTC.State.SelectedRainbowPetName = ""
+OTC.State.IsRefreshingRainbowPets = false
 
 function GetRainbowPetName(option)
     if type(option) ~= "string" then
@@ -3548,11 +3550,11 @@ function GetRainbowPetName(option)
 end
 
 function RefreshRainbowPets()
-    if IsRefreshingRainbowPets then
+    if OTC.State.IsRefreshingRainbowPets then
         return
     end
 
-    IsRefreshingRainbowPets = true
+    OTC.State.IsRefreshingRainbowPets = true
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
@@ -3621,9 +3623,9 @@ function RefreshRainbowPets()
 
         local updatedSelection = "None"
 
-        if SelectedRainbowPetName ~= "" then
+        if OTC.State.SelectedRainbowPetName ~= "" then
             for _, option in ipairs(newOptions) do
-                if GetRainbowPetName(option) == SelectedRainbowPetName then
+                if GetRainbowPetName(option) == OTC.State.SelectedRainbowPetName then
                     updatedSelection = option
                     break
                 end
@@ -3631,7 +3633,7 @@ function RefreshRainbowPets()
         end
 
         if updatedSelection == "None" then
-            SelectedRainbowPetName = ""
+            OTC.State.SelectedRainbowPetName = ""
         end
 
         if #newOptions == 0 then
@@ -3647,7 +3649,7 @@ function RefreshRainbowPets()
         end
     end)
 
-    IsRefreshingRainbowPets = false
+    OTC.State.IsRefreshingRainbowPets = false
 
     if not success then
         warn("[OTC Rainbow] Pets refresh error:", err)
@@ -3661,15 +3663,15 @@ RainbowPetDropdown = PetsTab:CreateDropdown({
     value = "None",
     flag = "RainbowPetSelection",
     callback = function(value)
-        if IsRefreshingRainbowPets then
+        if OTC.State.IsRefreshingRainbowPets then
             return
         end
 
         if value == "None" or value == "No pets" then
-            SelectedRainbowPetName = ""
+            OTC.State.SelectedRainbowPetName = ""
             OTC.Config.SelectedRainbowPet = "None"
         else
-            SelectedRainbowPetName = GetRainbowPetName(value)
+            OTC.State.SelectedRainbowPetName = GetRainbowPetName(value)
             OTC.Config.SelectedRainbowPet = value
         end
     end,
@@ -3697,11 +3699,11 @@ for count = MachineConfig.Shiny.MinPets, #MachineConfig.Shiny.Durations do
     RainbowCountValues[option] = count
 end
 
-local SelectedRainbowCount = RainbowCountOptions[1]
+OTC.State.SelectedRainbowCount = RainbowCountOptions[1]
 
 for option, count in pairs(RainbowCountValues) do
     if count == OTC.Config.RainbowPetCount then
-        SelectedRainbowCount = option
+        OTC.State.SelectedRainbowCount = option
         break
     end
 end
@@ -3711,7 +3713,7 @@ PetsTab:CreateDropdown({
     description = "Select the number of Diamond pets and crafting duration.",
     flag = "RainbowAmount",
     options = RainbowCountOptions,
-    value = SelectedRainbowCount,
+    value = OTC.State.SelectedRainbowCount,
     callback = function(value)
         local count = RainbowCountValues[value]
 
@@ -3806,7 +3808,7 @@ PetsTab:CreateToggle({
                         end
                     end
 
-                    local selectedName = SelectedRainbowPetName
+                    local selectedName = OTC.State.SelectedRainbowPetName
                     local requiredCount = OTC.Config.RainbowPetCount
 
                     if selectedName == ""
@@ -3865,13 +3867,13 @@ task.spawn(function()
     end
 end)
 
-local RainbowClaimToken = 0
+OTC.State.RainbowClaimToken = 0
 
 function AutoClaimRainbowLoop(token)
     local lastClaims = {}
 
     while OTC.Config.AutoClaimRainbowPets
-        and token == RainbowClaimToken
+        and token == OTC.State.RainbowClaimToken
     do
         local replica = DataController:GetReplica()
         local data = replica and replica.Data
@@ -3884,7 +3886,7 @@ function AutoClaimRainbowLoop(token)
 
             for craftId, craft in pairs(queue) do
                 if not OTC.Config.AutoClaimRainbowPets
-                    or token ~= RainbowClaimToken
+                    or token ~= OTC.State.RainbowClaimToken
                 then
                     return
                 end
@@ -3944,10 +3946,10 @@ PetsTab:CreateToggle({
     value = OTC.Config.AutoClaimRainbowPets,
     callback = function(value)
         OTC.Config.AutoClaimRainbowPets = value
-        RainbowClaimToken += 1
+        OTC.State.RainbowClaimToken += 1
 
         if value then
-            local token = RainbowClaimToken
+            local token = OTC.State.RainbowClaimToken
 
             task.spawn(function()
                 local ok, err = pcall(function()
@@ -3974,10 +3976,10 @@ OTC.Config.SelectedEnchantTypes = OTC.Config.SelectedEnchantTypes or {}
 local EnchantPetDropdown
 local EnchantPetOptions = {}
 local EnchantPetIds = {}
-local SelectedEnchantPetId
-local SelectedEnchantTypes = {}
-local SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot
-local AutoEnchantToken = 0
+OTC.State.SelectedEnchantPetId = nil
+OTC.State.SelectedEnchantTypes = {}
+OTC.State.SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot
+OTC.State.AutoEnchantToken = 0
 
 local EnchantPosition = CFrame.new(
     127.143799, 7695.35156, -1802.73132,
@@ -4008,7 +4010,7 @@ end
 function GetSelectedEnchantList()
     local result = {}
 
-    for enchantName, enabled in pairs(SelectedEnchantTypes) do
+    for enchantName, enabled in pairs(OTC.State.SelectedEnchantTypes) do
         if enabled and EnchantConfig.IsFilterable(enchantName) then
             table.insert(result, enchantName)
         end
@@ -4095,14 +4097,14 @@ PetsTab:CreateDropdown({
     multiSelect = true,
     flag = "SelectedEnchantTypes",
     callback = function(value)
-        table.clear(SelectedEnchantTypes)
+        table.clear(OTC.State.SelectedEnchantTypes)
 
         if type(value) == "table" then
             for _, enchantName in ipairs(value) do
-                SelectedEnchantTypes[enchantName] = true
+                OTC.State.SelectedEnchantTypes[enchantName] = true
             end
         elseif type(value) == "string" then
-            SelectedEnchantTypes[value] = true
+            OTC.State.SelectedEnchantTypes[value] = true
         end
 
         OTC.Config.SelectedEnchantTypes = GetSelectedEnchantList()
@@ -4113,7 +4115,7 @@ PetsTab:CreateDropdown({
     name = "Enchant Slot",
     description = "Choose which enchant slot to roll.",
     options = {"Slot 1", "Slot 2"},
-    value = SelectedEnchantSlot == 2 and "Slot 2" or "Slot 1",
+    value = OTC.State.SelectedEnchantSlot == 2 and "Slot 2" or "Slot 1",
     flag = "SelectedEnchantSlot",
     callback = function(value)
         if type(value) == "table" then
@@ -4121,14 +4123,14 @@ PetsTab:CreateDropdown({
         end
 
         if value == "Slot 1" then
-            SelectedEnchantSlot = 1
+            OTC.State.SelectedEnchantSlot = 1
         elseif value == "Slot 2" then
-            SelectedEnchantSlot = 2
+            OTC.State.SelectedEnchantSlot = 2
         else
             return
         end
 
-        OTC.Config.SelectedEnchantSlot = SelectedEnchantSlot
+        OTC.Config.SelectedEnchantSlot = OTC.State.SelectedEnchantSlot
 
         Window:Notify({
                 icon = 116094782851554,
@@ -4151,15 +4153,15 @@ EnchantPetDropdown = PetsTab:CreateDropdown({
             value = value[1]
         end
 
-        SelectedEnchantPetId = EnchantPetIds[value]
-        OTC.Config.SelectedEnchantPet = SelectedEnchantPetId or ""
+        OTC.State.SelectedEnchantPetId = EnchantPetIds[value]
+        OTC.Config.SelectedEnchantPet = OTC.State.SelectedEnchantPetId or ""
 
-        if SelectedEnchantPetId then
+        if OTC.State.SelectedEnchantPetId then
             Window:Notify({
                 icon = 116094782851554,
                 Title = "Enchant",
                 Content = "Selected: " .. tostring(value)
-                    .. "\nPet ID: " .. tostring(SelectedEnchantPetId),
+                    .. "\nPet ID: " .. tostring(OTC.State.SelectedEnchantPetId),
                 Duration = 5
             })
         else
@@ -4176,7 +4178,7 @@ EnchantPetDropdown = PetsTab:CreateDropdown({
 RefreshEnchantPets()
 
 function StartAutoEnchant()
-    if not SelectedEnchantPetId then
+    if not OTC.State.SelectedEnchantPetId then
         Window:Notify({
                 icon = 116094782851554,
             Title = "Auto Enchant",
@@ -4199,21 +4201,21 @@ function StartAutoEnchant()
     end
 
     local _, pets = GetEnchantPetData()
-    local pet = pets and pets.Owned[SelectedEnchantPetId]
+    local pet = pets and pets.Owned[OTC.State.SelectedEnchantPetId]
 
     if not pet then
-        warn("[Auto Enchant] Pet not found:", SelectedEnchantPetId)
+        warn("[Auto Enchant] Pet not found:", OTC.State.SelectedEnchantPetId)
         return false
     end
 
     local currentEnchant
 
-    if SelectedEnchantSlot == 1 then
+    if OTC.State.SelectedEnchantSlot == 1 then
         currentEnchant = pet.Enchant
-    elseif SelectedEnchantSlot == 2 then
+    elseif OTC.State.SelectedEnchantSlot == 2 then
         currentEnchant = pet.Enchant2
     else
-        warn("[Auto Enchant] Invalid slot:", SelectedEnchantSlot)
+        warn("[Auto Enchant] Invalid slot:", OTC.State.SelectedEnchantSlot)
         return false
     end
 
@@ -4245,8 +4247,8 @@ function StartAutoEnchant()
 
     local startOK, startResult = pcall(function()
         return EnchantService:AutoStart({
-            PetId = SelectedEnchantPetId,
-            Slot = SelectedEnchantSlot,
+            PetId = OTC.State.SelectedEnchantPetId,
+            Slot = OTC.State.SelectedEnchantSlot,
             Replace = currentEnchant
         })
     end)
@@ -4276,7 +4278,7 @@ function StartAutoEnchant()
     Window:Notify({
                 icon = 116094782851554,
         Title = "Auto Enchant",
-        Content = "Auto Enchant started on Slot " .. SelectedEnchantSlot .. ".",
+        Content = "Auto Enchant started on Slot " .. OTC.State.SelectedEnchantSlot .. ".",
         Duration = 3
     })
 
@@ -4284,7 +4286,7 @@ function StartAutoEnchant()
 end
 
 function ClaimEnchantPet(token)
-    while OTC.Config.AutoEnchant and token == AutoEnchantToken do
+    while OTC.Config.AutoEnchant and token == OTC.State.AutoEnchantToken do
         if LocalPlayer:GetAttribute("EnchantHeldState") == "Done" then
             local heldResult = LocalPlayer:GetAttribute("EnchantHeldResult")
 
@@ -4339,9 +4341,9 @@ PetsTab:CreateToggle({
     flag = "AutoEnchant",
     callback = function(value)
         OTC.Config.AutoEnchant = value
-        AutoEnchantToken += 1
+        OTC.State.AutoEnchantToken += 1
 
-        local token = AutoEnchantToken
+        local token = OTC.State.AutoEnchantToken
 
         if not value then
             StopAutoEnchant()
@@ -4356,13 +4358,13 @@ PetsTab:CreateToggle({
             end
 
             if not success or not result then
-                if token == AutoEnchantToken then
+                if token == OTC.State.AutoEnchantToken then
                     OTC.Config.AutoEnchant = false
                 end
                 return
             end
 
-            if token ~= AutoEnchantToken or not OTC.Config.AutoEnchant then
+            if token ~= OTC.State.AutoEnchantToken or not OTC.Config.AutoEnchant then
                 return
             end
 
@@ -4383,8 +4385,8 @@ task.spawn(function()
     end
 end)
 
-local AutoEquipBestPets = false
-local AutoEquipBestSession = 0
+OTC.State.AutoEquipBestPets = false
+OTC.State.AutoEquipBestSession = 0
 
 PetsTab:CreateToggle({
     name = "Auto Equip Best Pets",
@@ -4392,18 +4394,18 @@ PetsTab:CreateToggle({
     flag = "AutoEquipBestPets",
     value = false,
     callback = function(value)
-        AutoEquipBestPets = value
-        AutoEquipBestSession += 1
+        OTC.State.AutoEquipBestPets = value
+        OTC.State.AutoEquipBestSession += 1
 
-        local session = AutoEquipBestSession
+        local session = OTC.State.AutoEquipBestSession
 
         if not value then
             return
         end
 
         task.spawn(function()
-            while AutoEquipBestPets
-                and AutoEquipBestSession == session do
+            while OTC.State.AutoEquipBestPets
+                and OTC.State.AutoEquipBestSession == session do
 
                 local success, err = pcall(function()
                     PetService.PetActionRequested:Fire({
@@ -4544,11 +4546,10 @@ for _, option in ipairs(EggOptions) do
     end
 end
 
-local SelectedEggOption
-
+OTC.State.SelectedEggOption = nil
 for option, eggName in pairs(EggOptionToName) do
     if eggName == OTC.Config.SelectedEgg then
-        SelectedEggOption = option
+        OTC.State.SelectedEggOption = option
         break
     end
 end
@@ -4558,7 +4559,7 @@ EggsTab:CreateDropdown({
     description = "Select an egg to hatch.",
     flag = "Eggs",
     options = EggOptions,
-    value = SelectedEggOption or EggOptions[1],
+    value = OTC.State.SelectedEggOption or EggOptions[1],
     callback = function(value)
         local eggName = EggOptionToName[value]
 
@@ -4580,11 +4581,11 @@ local AmountValues = {
     ["8 Eggs"] = 8,
 }
 
-local SelectedAmount = "1 Egg"
+OTC.State.SelectedAmount = "1 Egg"
 
 for option, amount in pairs(AmountValues) do
     if amount == OTC.Config.HatchAmount then
-        SelectedAmount = option
+        OTC.State.SelectedAmount = option
         break
     end
 end
@@ -4594,7 +4595,7 @@ EggsTab:CreateDropdown({
     description = "Choose how many eggs to hatch per request.",
     flag = "Amount",
     options = AmountOptions,
-    value = SelectedAmount,
+    value = OTC.State.SelectedAmount,
     callback = function(value)
         local amount = AmountValues[value]
 
@@ -4772,7 +4773,7 @@ function TeleportToEgg()
     return true
 end
 
-local HatchSession = 0
+OTC.State.HatchSession = 0
 
 EggsTab:CreateToggle({
     name = "Auto Hatch",
@@ -4781,9 +4782,9 @@ EggsTab:CreateToggle({
     value = OTC.Config.AutoHatch,
     callback = function(value)
         OTC.Config.AutoHatch = value
-        HatchSession += 1
+        OTC.State.HatchSession += 1
 
-        local session = HatchSession
+        local session = OTC.State.HatchSession
 
         if not value then
             return
@@ -4793,7 +4794,7 @@ EggsTab:CreateToggle({
             if not TeleportToEgg() then
                 warn("[OTC Eggs] Egg model not found or character unavailable.")
 
-                if HatchSession == session then
+                if OTC.State.HatchSession == session then
                     OTC.Config.AutoHatch = false
                 end
 
@@ -4802,7 +4803,7 @@ EggsTab:CreateToggle({
 
             task.wait(1)
 
-            while OTC.Config.AutoHatch and HatchSession == session do
+            while OTC.Config.AutoHatch and OTC.State.HatchSession == session do
                 local success, err = pcall(function()
                     local eggName = OTC.Config.SelectedEgg
                     local amount = OTC.Config.HatchAmount
@@ -4835,8 +4836,8 @@ EggsTab:CreateToggle({
     end,
 })
 
-local AutoDig = false
-local AutoDigSession = 0
+OTC.State.AutoDig = false
+OTC.State.AutoDigSession = 0
 
 function TeleportToDigZone()
     local islands = workspace:FindFirstChild("Ts2Islands")
@@ -4877,7 +4878,7 @@ function TeleportToDigZone()
     return true
 end
 
-local lastRewardClose = 0
+OTC.State.lastRewardClose = 0
 
 function HandleDigReward()
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -4890,11 +4891,11 @@ function HandleDigReward()
             and object.Visible
             and object.Text:find("Tap anywhere to close", 1, true) then
 
-            if os.clock() - lastRewardClose < 2 then
+            if os.clock() - OTC.State.lastRewardClose < 2 then
                 return false
             end
 
-            lastRewardClose = os.clock()
+            OTC.State.lastRewardClose = os.clock()
 
             pcall(function()
                 DigRewardPopup:Close()
@@ -4930,10 +4931,10 @@ MinigamesTab:CreateToggle({
     value = false,
 
     callback = function(value)
-        AutoDig = value
-        AutoDigSession += 1
+        OTC.State.AutoDig = value
+        OTC.State.AutoDigSession += 1
 
-        local session = AutoDigSession
+        local session = OTC.State.AutoDigSession
 
         if not value then
             return
@@ -4941,8 +4942,8 @@ MinigamesTab:CreateToggle({
 
         task.spawn(function()
             if not TeleportToDigZone() then
-                if AutoDigSession == session then
-                    AutoDig = false
+                if OTC.State.AutoDigSession == session then
+                    OTC.State.AutoDig = false
                 end
                 return
             end
@@ -4950,7 +4951,7 @@ MinigamesTab:CreateToggle({
             local lastStartAttempt = 0
             local lastRoundSequence = nil
 
-            while AutoDig and AutoDigSession == session do
+            while OTC.State.AutoDig and OTC.State.AutoDigSession == session do
                 local success = pcall(function()
                     if HandleDigReward() then
                         task.wait(0.5)
@@ -4987,7 +4988,7 @@ MinigamesTab:CreateToggle({
 
                     local sequence = round.Sequence
 
-                    while AutoDig and AutoDigSession == session do
+                    while OTC.State.AutoDig and OTC.State.AutoDigSession == session do
                         if HandleDigReward() then
                             break
                         end
@@ -5026,8 +5027,8 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-local AutoPetDefense = false
-local AutoPetDefenseSession = 0
+OTC.State.AutoPetDefense = false
+OTC.State.AutoPetDefenseSession = 0
 
 function TeleportToColosseum()
     local island = workspace:FindFirstChild("WaveDefence Island")
@@ -5129,10 +5130,10 @@ MinigamesTab:CreateToggle({
     value = false,
 
     callback = function(value)
-        AutoPetDefense = value
-        AutoPetDefenseSession += 1
+        OTC.State.AutoPetDefense = value
+        OTC.State.AutoPetDefenseSession += 1
 
-        local session = AutoPetDefenseSession
+        local session = OTC.State.AutoPetDefenseSession
 
         if not value then
             return
@@ -5141,7 +5142,7 @@ MinigamesTab:CreateToggle({
         task.spawn(function()
             local started = StartPetDefense()
 
-            if not AutoPetDefense or AutoPetDefenseSession ~= session then
+            if not OTC.State.AutoPetDefense or OTC.State.AutoPetDefenseSession ~= session then
                 return
             end
 
@@ -5149,7 +5150,7 @@ MinigamesTab:CreateToggle({
                 return
             end
 
-            while AutoPetDefense and AutoPetDefenseSession == session do
+            while OTC.State.AutoPetDefense and OTC.State.AutoPetDefenseSession == session do
                 local success = pcall(function()
                     if LocalPlayer:GetAttribute("ColosseumActive") ~= true then
                         task.wait(0.25)
@@ -5186,7 +5187,7 @@ local MiningController = nil
 local MiningService = nil
 local MiningConfig = nil
 
-local MiningLogHistory = {}
+OTC.State.MiningLogHistory = {}
 local MAX_MINING_LOGS = 8
 
 local PortalTarget = Vector3.new(12.794289, 5448.823242, -1884.811035)
@@ -5195,10 +5196,10 @@ local OutsidePosition = Vector3.new(5.45, 5436.12, -1878.03)
 local REFRESH_INTERVAL = 300
 local RETURN_DELAY = 3
 
-local MineRefreshInProgress = false
-local MineRefreshBusy = false
-local AutoMineBusy = false
-local MiningIndex = 1
+OTC.State.MineRefreshInProgress = false
+OTC.State.MineRefreshBusy = false
+OTC.State.AutoMineBusy = false
+OTC.State.MiningIndex = 1
 
 local MiningLog = MinigamesTab:CreateText({
     name = "Mining Logs",
@@ -5207,17 +5208,17 @@ local MiningLog = MinigamesTab:CreateText({
 
 function UpdateMiningLog(Message)
     table.insert(
-        MiningLogHistory,
+        OTC.State.MiningLogHistory,
         1,
         "[" .. os.date("%H:%M:%S") .. "] " .. tostring(Message)
     )
 
-    while #MiningLogHistory > MAX_MINING_LOGS do
-        table.remove(MiningLogHistory)
+    while #OTC.State.MiningLogHistory > MAX_MINING_LOGS do
+        table.remove(OTC.State.MiningLogHistory)
     end
 
     pcall(function()
-        MiningLog:Set(table.concat(MiningLogHistory, "\n"))
+        MiningLog:Set(table.concat(OTC.State.MiningLogHistory, "\n"))
     end)
 end
 
@@ -5365,7 +5366,7 @@ function GetMiningBlockPosition(BlockName)
 end
 
 function MoveNearMiningBlock(Position)
-    if MineRefreshInProgress then
+    if OTC.State.MineRefreshInProgress then
         return false
     end
 
@@ -5394,7 +5395,7 @@ function MoveNearMiningBlock(Position)
 
     task.wait(0.3)
 
-    if MineRefreshInProgress then
+    if OTC.State.MineRefreshInProgress then
         return false
     end
 
@@ -5472,7 +5473,7 @@ function GetMiningCandidates()
 end
 
 function HitMiningCell(State, Cell)
-    if MineRefreshInProgress then
+    if OTC.State.MineRefreshInProgress then
         return false
     end
 
@@ -5489,7 +5490,7 @@ function HitMiningCell(State, Cell)
         return false
     end
 
-    if MineRefreshInProgress then
+    if OTC.State.MineRefreshInProgress then
         return false
     end
 
@@ -5507,7 +5508,7 @@ function HitMiningCell(State, Cell)
         return false
     end
 
-    if MineRefreshInProgress then
+    if OTC.State.MineRefreshInProgress then
         return false
     end
 
@@ -5615,13 +5616,13 @@ MinigamesTab:CreateToggle({
 task.spawn(function()
     while task.wait(0.1) do
         if OTC.Config.AutoMine
-            and not AutoMineBusy
-            and not MineRefreshInProgress then
+            and not OTC.State.AutoMineBusy
+            and not OTC.State.MineRefreshInProgress then
 
-            AutoMineBusy = true
+            OTC.State.AutoMineBusy = true
 
             local Success, ErrorMessage = pcall(function()
-                if MineRefreshInProgress then
+                if OTC.State.MineRefreshInProgress then
                     return
                 end
 
@@ -5635,18 +5636,18 @@ task.spawn(function()
                 local Candidates = GetMiningCandidates()
 
                 if #Candidates == 0 then
-                    MiningIndex = 1
+                    OTC.State.MiningIndex = 1
                     return
                 end
 
-                if MiningIndex > #Candidates then
-                    MiningIndex = 1
+                if OTC.State.MiningIndex > #Candidates then
+                    OTC.State.MiningIndex = 1
                 end
 
-                local Cell = Candidates[MiningIndex]
-                MiningIndex += 1
+                local Cell = Candidates[OTC.State.MiningIndex]
+                OTC.State.MiningIndex += 1
 
-                if not MineRefreshInProgress then
+                if not OTC.State.MineRefreshInProgress then
                     HitMiningCell(State, Cell)
                 end
             end)
@@ -5655,7 +5656,7 @@ task.spawn(function()
                 UpdateMiningLog("AutoMine error: " .. tostring(ErrorMessage))
             end
 
-            AutoMineBusy = false
+            OTC.State.AutoMineBusy = false
 
             task.wait(math.max(
                 0.1,
@@ -5668,17 +5669,17 @@ end)
 task.spawn(function()
     while task.wait(0.1) do
         if OTC.Config.AutoMine
-            and not MineRefreshBusy
-            and not MineRefreshInProgress
+            and not OTC.State.MineRefreshBusy
+            and not OTC.State.MineRefreshInProgress
             and os.clock() - (OTC.Config.LastMineRefresh or os.clock()) >= REFRESH_INTERVAL then
 
-            MineRefreshBusy = true
-            MineRefreshInProgress = true
+            OTC.State.MineRefreshBusy = true
+            OTC.State.MineRefreshInProgress = true
 
             local Success, ErrorMessage = pcall(function()
                 UpdateMiningLog("Mine refresh started")
 
-                while AutoMineBusy do
+                while OTC.State.AutoMineBusy do
                     task.wait(0.05)
                 end
 
@@ -5717,7 +5718,7 @@ task.spawn(function()
 
                 Character:PivotTo(CFrame.new(PortalTarget))
                 OTC.Config.LastMineRefresh = os.clock()
-                MiningIndex = 1
+                OTC.State.MiningIndex = 1
 
                 UpdateMiningLog("Returned to mine")
             end)
@@ -5726,8 +5727,8 @@ task.spawn(function()
                 UpdateMiningLog("Refresh error: " .. tostring(ErrorMessage))
             end
 
-            MineRefreshInProgress = false
-            MineRefreshBusy = false
+            OTC.State.MineRefreshInProgress = false
+            OTC.State.MineRefreshBusy = false
         end
     end
 end)
@@ -5735,8 +5736,8 @@ end)
 function AutoSellSection()
     local CurrentCapacity = 2500
 local SliderObject
-local AutoSellTriggered = false
-local AutoSellBusy = false
+OTC.State.AutoSellTriggered = false
+OTC.State.AutoSellBusy = false
 
 function GetSellPad()
     local MineArea = workspace:FindFirstChild("MineArea")
@@ -5847,7 +5848,7 @@ SliderObject = MinigamesTab:CreateSlider({
         )
 
         if not Dragging then
-            AutoSellTriggered = false
+            OTC.State.AutoSellTriggered = false
         end
     end
 })
@@ -5860,8 +5861,8 @@ MinigamesTab:CreateToggle({
         OTC.Config.AutoSell = Value
 
         if not Value then
-            AutoSellTriggered = false
-            AutoSellBusy = false
+            OTC.State.AutoSellTriggered = false
+            OTC.State.AutoSellBusy = false
         end
     end
 })
@@ -5871,8 +5872,8 @@ task.spawn(function()
         task.wait(0.25)
 
         if not OTC.Config.AutoSell then
-            AutoSellTriggered = false
-            AutoSellBusy = false
+            OTC.State.AutoSellTriggered = false
+            OTC.State.AutoSellBusy = false
             continue
         end
 
@@ -5910,16 +5911,16 @@ task.spawn(function()
         )
 
         if Count < Threshold then
-            AutoSellTriggered = false
+            OTC.State.AutoSellTriggered = false
             continue
         end
 
-        if AutoSellTriggered or AutoSellBusy then
+        if OTC.State.AutoSellTriggered or OTC.State.AutoSellBusy then
             continue
         end
 
-        AutoSellTriggered = true
-        AutoSellBusy = true
+        OTC.State.AutoSellTriggered = true
+        OTC.State.AutoSellBusy = true
 
         task.spawn(function()
             local Success, ErrorMessage = pcall(function()
@@ -5953,7 +5954,7 @@ task.spawn(function()
                     end
                 end
 
-                AutoSellTriggered = false
+                OTC.State.AutoSellTriggered = false
 
                 if not Sold then
                     task.wait(1)
@@ -5962,19 +5963,19 @@ task.spawn(function()
 
             if not Success then
                 warn("[OTC AutoSell]", ErrorMessage)
-                AutoSellTriggered = false
+                OTC.State.AutoSellTriggered = false
             end
 
-            AutoSellBusy = false
+            OTC.State.AutoSellBusy = false
         end)
     end
 end)
 end
 AutoSellSection()
 
-local AutoUpgradePickaxe = false
-local AutoUpgradeBackpack = false
-local UpgradeDelay = 0.1
+OTC.State.AutoUpgradePickaxe = false
+OTC.State.AutoUpgradeBackpack = false
+OTC.State.UpgradeDelay = 0.1
 
 local UpgradeBusy = {
     Tool = false,
@@ -6060,8 +6061,8 @@ function PurchaseItems(Category)
         local BuyAction = IsTool and "BuyTool" or "BuyStorage"
         local EquipAction = IsTool and "EquipTool" or "EquipStorage"
 
-        while (IsTool and AutoUpgradePickaxe)
-            or (not IsTool and AutoUpgradeBackpack) do
+        while (IsTool and OTC.State.AutoUpgradePickaxe)
+            or (not IsTool and OTC.State.AutoUpgradeBackpack) do
 
             if not TeleportToUpgrade() then
                 task.wait(0.5)
@@ -6089,8 +6090,8 @@ function PurchaseItems(Category)
             local BoughtSomething = false
 
             for _, Item in ipairs(Items) do
-                if not ((IsTool and AutoUpgradePickaxe)
-                    or (not IsTool and AutoUpgradeBackpack)) then
+                if not ((IsTool and OTC.State.AutoUpgradePickaxe)
+                    or (not IsTool and OTC.State.AutoUpgradeBackpack)) then
                     break
                 end
 
@@ -6108,7 +6109,7 @@ function PurchaseItems(Category)
                 end)
 
                 if BuySuccess then
-                    task.wait(UpgradeDelay)
+                    task.wait(OTC.State.UpgradeDelay)
 
                     local RefreshSuccess, NewState = pcall(MiningController.GetState)
                     if RefreshSuccess and NewState then
@@ -6130,7 +6131,7 @@ function PurchaseItems(Category)
                                 Service:Purchase(EquipAction, Id)
                             end)
 
-                            task.wait(UpgradeDelay)
+                            task.wait(OTC.State.UpgradeDelay)
 
                             local EquipStateSuccess, EquipState =
                                 pcall(MiningController.GetState)
@@ -6168,7 +6169,7 @@ MinigamesTab:CreateToggle({
     description = "Teleport to Upgrade Stand and buy/equip pickaxes",
     flag = "AutoUpgradePickaxe",
     callback = function(Value)
-        AutoUpgradePickaxe = Value
+        OTC.State.AutoUpgradePickaxe = Value
 
         if Value then
             task.spawn(PurchaseItems, "Tool")
@@ -6181,7 +6182,7 @@ MinigamesTab:CreateToggle({
     description = "Teleport to Upgrade Stand and buy/equip backpacks",
     flag = "AutoUpgradeBackpack",
     callback = function(Value)
-        AutoUpgradeBackpack = Value
+        OTC.State.AutoUpgradeBackpack = Value
 
         if Value then
             task.spawn(PurchaseItems, "Backpack")
@@ -6360,18 +6361,20 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-local FishingFolder
-local HeavenFalls
-local Fisherman
-local Pond
+local LateState = {}
 
-local Spot = FishingConfig.Spots.HeavenFalls
-local MIN_ZONE_LUCK = 2.5
+LateState.FishingFolder
+LateState.HeavenFalls
+LateState.Fisherman
+LateState.Pond
 
-local TravelingToHeaven = false
-local WorldReady = false
+LateState.Spot = FishingConfig.Spots.HeavenFalls
+LateState.MIN_ZONE_LUCK = 2.5
 
-local FishingState = {
+LateState.TravelingToHeaven = false
+LateState.WorldReady = false
+
+LateState.FishingState = {
     AutoBait = false,
     AutoFish = false,
     AutoCollectBowl = false,
@@ -6436,25 +6439,25 @@ function TeleportToFishingModel(Model, Offset)
 end
 
 function GetHeavenObjects()
-    FishingFolder = Workspace:FindFirstChild("Fishing")
+    LateState.FishingFolder = Workspace:FindFirstChild("Fishing")
 
-    if not FishingFolder then
-        WorldReady = false
+    if not LateState.FishingFolder then
+        LateState.WorldReady = false
         return false
     end
 
-    HeavenFalls = FishingFolder:FindFirstChild("HeavenFalls")
+    LateState.HeavenFalls = LateState.FishingFolder:FindFirstChild("HeavenFalls")
 
-    if not HeavenFalls then
-        WorldReady = false
+    if not LateState.HeavenFalls then
+        LateState.WorldReady = false
         return false
     end
 
-    Fisherman = FishingFolder:FindFirstChild("Fisherman_HeavenFalls")
-    Pond = HeavenFalls:FindFirstChild("Pond")
-    WorldReady = Fisherman ~= nil and Pond ~= nil
+    LateState.Fisherman = LateState.FishingFolder:FindFirstChild("Fisherman_HeavenFalls")
+    LateState.Pond = LateState.HeavenFalls:FindFirstChild("Pond")
+    LateState.WorldReady = LateState.Fisherman ~= nil and LateState.Pond ~= nil
 
-    return WorldReady
+    return LateState.WorldReady
 end
 
 function EnsureHeaven()
@@ -6462,11 +6465,11 @@ function EnsureHeaven()
         return true
     end
 
-    if TravelingToHeaven then
+    if LateState.TravelingToHeaven then
         return false
     end
 
-    TravelingToHeaven = true
+    LateState.TravelingToHeaven = true
 
     local Success, Result = pcall(function()
         return TravelRemote:InvokeServer({
@@ -6477,13 +6480,13 @@ function EnsureHeaven()
 
     if not Success then
         warn("[OTC Fishing] Travel error:", Result)
-        TravelingToHeaven = false
+        LateState.TravelingToHeaven = false
         return false
     end
 
     if type(Result) == "table" and Result.Success == false then
         warn("[OTC Fishing] Travel rejected:", Result)
-        TravelingToHeaven = false
+        LateState.TravelingToHeaven = false
         return false
     end
 
@@ -6493,7 +6496,7 @@ function EnsureHeaven()
         task.wait(0.5)
     until GetHeavenObjects() or os.clock() - StartTime >= 30
 
-    TravelingToHeaven = false
+    LateState.TravelingToHeaven = false
 
     return GetHeavenObjects()
 end
@@ -6504,7 +6507,7 @@ function GetAvailableRodStand()
     end
 
     for Index = 1, 3 do
-        local Stand = HeavenFalls:FindFirstChild("RodStand" .. Index)
+        local Stand = LateState.HeavenFalls:FindFirstChild("RodStand" .. Index)
 
         if Stand and Stand:IsA("Model") then
             local InteractText = Stand:GetAttribute("InteractText")
@@ -6553,10 +6556,10 @@ function GetPondData()
     end
 
     return {
-        X = Pond.Position.X,
-        Z = Pond.Position.Z,
-        RadiusX = Pond.Size.X / 2,
-        RadiusZ = Pond.Size.Z / 2
+        X = LateState.Pond.Position.X,
+        Z = LateState.Pond.Position.Z,
+        RadiusX = LateState.Pond.Size.X / 2,
+        RadiusZ = LateState.Pond.Size.Z / 2
     }
 end
 
@@ -6573,20 +6576,20 @@ function GetActiveEligibleZones()
         return Result
     end
 
-    for Index, ZoneName in ipairs(Spot.Zones or {}) do
+    for Index, ZoneName in ipairs(LateState.Spot.Zones or {}) do
         local Config = FishingConfig.Zones[ZoneName]
 
-        if not Config or Config.Luck < MIN_ZONE_LUCK then
+        if not Config or Config.Luck < LateState.MIN_ZONE_LUCK then
             continue
         end
 
-        local Shown = FishingSim.ZoneShown(Spot, Index, Now)
+        local Shown = FishingSim.ZoneShown(LateState.Spot, Index, Now)
 
         if Shown <= 0 then
             continue
         end
 
-        local X, Z = FishingSim.ZonePosition(Spot, Index, PondData, Now)
+        local X, Z = FishingSim.ZonePosition(LateState.Spot, Index, PondData, Now)
 
         table.insert(Result, {
             Name = ZoneName,
@@ -6618,23 +6621,23 @@ end
 function UpdateFishingAttributes()
     local HasZone = false
 
-    if FishingState.AutoBait and GetHeavenObjects() then
+    if LateState.FishingState.AutoBait and GetHeavenObjects() then
         HasZone = HasEligibleZone()
     end
 
     Workspace:SetAttribute(
         "TS2FishingAutoBait",
-        FishingState.AutoBait and FishingState.SelectedBait or nil
+        LateState.FishingState.AutoBait and LateState.FishingState.SelectedBait or nil
     )
 
     Workspace:SetAttribute(
         "TS2FishingAutoCast",
-        FishingState.AutoBait and HasZone
+        LateState.FishingState.AutoBait and HasZone
     )
 
     Workspace:SetAttribute(
         "TS2FishingAutoTap",
-        FishingState.AutoFish
+        LateState.FishingState.AutoFish
     )
 end
 
@@ -6747,17 +6750,17 @@ function GetOfferById(Id)
 end
 
 function BuySelectedBait()
-    if FishingState.Buying or not FishingState.SelectedShopOffer then
+    if LateState.FishingState.Buying or not LateState.FishingState.SelectedShopOffer then
         return
     end
 
-    local Offer = GetOfferById(FishingState.SelectedShopOffer)
+    local Offer = GetOfferById(LateState.FishingState.SelectedShopOffer)
 
     if not Offer or Offer.Left <= 0 then
         return
     end
 
-    FishingState.Buying = true
+    LateState.FishingState.Buying = true
 
     local Success, Error = pcall(function()
         if not EnsureHeaven() then
@@ -6765,7 +6768,7 @@ function BuySelectedBait()
         end
 
         local Teleported = TeleportToFishingModel(
-            Fisherman,
+            LateState.Fisherman,
             CFrame.new(0, 3, -6)
         )
 
@@ -6786,8 +6789,8 @@ function BuySelectedBait()
         warn("[OTC Fishing] Auto Buy error:", Error)
     end
 
-    task.wait(FishingState.BuyDelay)
-    FishingState.Buying = false
+    task.wait(LateState.FishingState.BuyDelay)
+    LateState.FishingState.Buying = false
 end
 
 function GetEmptyRods()
@@ -6841,15 +6844,15 @@ end
 
 function StartAutoBait()
     task.spawn(function()
-        while FishingState.AutoBait do
-            if not FishingState.Busy then
-                FishingState.Busy = true
+        while LateState.FishingState.AutoBait do
+            if not LateState.FishingState.Busy then
+                LateState.FishingState.Busy = true
 
                 if EnsureHeaven() then
                     local BestZone = GetBestEligibleZone()
 
                     if BestZone then
-                        Workspace:SetAttribute("TS2FishingAutoBait", FishingState.SelectedBait)
+                        Workspace:SetAttribute("TS2FishingAutoBait", LateState.FishingState.SelectedBait)
                         Workspace:SetAttribute("TS2FishingAutoCast", true)
 
                         print(
@@ -6865,62 +6868,62 @@ function StartAutoBait()
                     end
                 end
 
-                FishingState.Busy = false
+                LateState.FishingState.Busy = false
             end
 
-            task.wait(FishingState.FishingDelay)
+            task.wait(LateState.FishingState.FishingDelay)
         end
     end)
 end
 
 function StartAutoFish()
     task.spawn(function()
-        while FishingState.AutoFish do
-            if not FishingState.Busy then
-                FishingState.Busy = true
+        while LateState.FishingState.AutoFish do
+            if not LateState.FishingState.Busy then
+                LateState.FishingState.Busy = true
 
                 if EnsureHeaven() then
                     UpdateFishingAttributes()
                     InteractWithAvailableStand()
                 end
 
-                FishingState.Busy = false
+                LateState.FishingState.Busy = false
             end
 
-            task.wait(FishingState.FishingDelay)
+            task.wait(LateState.FishingState.FishingDelay)
         end
     end)
 end
 
 function StartAutoCollect()
     task.spawn(function()
-        while FishingState.AutoCollectBowl do
+        while LateState.FishingState.AutoCollectBowl do
             if EnsureHeaven() then
                 CollectFishingBowl()
             end
 
-            task.wait(FishingState.CollectDelay)
+            task.wait(LateState.FishingState.CollectDelay)
         end
     end)
 end
 
 function StartRemoveEmptyRods()
     task.spawn(function()
-        while FishingState.RemoveEmptyRods do
+        while LateState.FishingState.RemoveEmptyRods do
             if EnsureHeaven() then
                 RemoveEmptyFishingRods()
             end
 
-            task.wait(FishingState.RemoveDelay)
+            task.wait(LateState.FishingState.RemoveDelay)
         end
     end)
 end
 
 function StartAutoBuy()
     task.spawn(function()
-        while FishingState.AutoBuyBait do
+        while LateState.FishingState.AutoBuyBait do
             BuySelectedBait()
-            task.wait(FishingState.BuyDelay)
+            task.wait(LateState.FishingState.BuyDelay)
         end
     end)
 end
@@ -6944,7 +6947,7 @@ FishingTab:CreateDropdown({
         local BaitId = GetBaitIdFromName(Selected)
 
         if BaitId then
-            FishingState.SelectedBait = BaitId
+            LateState.FishingState.SelectedBait = BaitId
             UpdateFishingAttributes()
         end
     end
@@ -6955,7 +6958,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoBait",
     callback = function(Value)
-        FishingState.AutoBait = Value
+        LateState.FishingState.AutoBait = Value
         UpdateFishingAttributes()
 
         if Value then
@@ -6969,7 +6972,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoFish",
     callback = function(Value)
-        FishingState.AutoFish = Value
+        LateState.FishingState.AutoFish = Value
         UpdateFishingAttributes()
 
         if Value then
@@ -6983,7 +6986,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoCollect",
     callback = function(Value)
-        FishingState.AutoCollectBowl = Value
+        LateState.FishingState.AutoCollectBowl = Value
 
         if Value then
             StartAutoCollect()
@@ -6996,7 +6999,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingRemoveEmptyRods",
     callback = function(Value)
-        FishingState.RemoveEmptyRods = Value
+        LateState.FishingState.RemoveEmptyRods = Value
 
         if Value then
             StartRemoveEmptyRods()
@@ -7020,7 +7023,7 @@ FishingTab:CreateDropdown({
             Selected = Option[1]
         end
 
-        FishingState.SelectedShopOffer = GetOfferIdFromName(Selected)
+        LateState.FishingState.SelectedShopOffer = GetOfferIdFromName(Selected)
     end
 })
 
@@ -7029,7 +7032,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoBuyBait",
     callback = function(Value)
-        FishingState.AutoBuyBait = Value
+        LateState.FishingState.AutoBuyBait = Value
 
         if Value then
             StartAutoBuy()
@@ -7044,14 +7047,14 @@ FishingTab:CreateToggle({
 
 UpdateFishingAttributes()
 
-local WebhookURL = ""
-local AvatarURL = "https://cdn.discordapp.com/avatars/1416562431882432666/ca20c1ec7d67590754fca8f0b109f9d0.webp?animated=false&size=2048"
+LateState.WebhookURL = ""
+LateState.AvatarURL = "https://cdn.discordapp.com/avatars/1416562431882432666/ca20c1ec7d67590754fca8f0b109f9d0.webp?animated=false&size=2048"
 
-local MinimumOneIn = 1000
-local DiscordUserID = ""
+LateState.MinimumOneIn = 1000
+LateState.DiscordUserID = ""
 
-local SendWebhookEnabled = true
-local SendWebhookWithMentionEnabled = true
+LateState.SendWebhookEnabled = true
+LateState.SendWebhookWithMentionEnabled = true
 
 function getPetImage(petName)
     local petData = PetVisualConfig[petName]
@@ -7113,10 +7116,10 @@ end
 function passesOneInFilter(pet)
     local oneIn = getCalculatedOneIn(pet)
 
-    return oneIn ~= nil and oneIn >= MinimumOneIn
+    return oneIn ~= nil and oneIn >= LateState.MinimumOneIn
 end
 
-local RarityColors = {
+LateState.RarityColors = {
     Basic = 0xAAAAAA,
     Common = 0xBFC5CC,
     Rare = 0x3498DB,
@@ -7134,8 +7137,8 @@ function getEmbedColor(rarity)
         return 0x2F3136
     end
 
-    if RarityColors[rarity] then
-        return RarityColors[rarity]
+    if LateState.RarityColors[rarity] then
+        return LateState.RarityColors[rarity]
     end
 
     if rarity:sub(1, 6) == "Secret" then
@@ -7186,12 +7189,12 @@ function abbreviateNumber(value)
 end
 
 function sendWebhook(embed, content)
-    if not SendWebhookEnabled then
+    if not LateState.SendWebhookEnabled then
         return false
     end
 
-    if type(WebhookURL) ~= "string"
-        or WebhookURL == "" then
+    if type(LateState.WebhookURL) ~= "string"
+        or LateState.WebhookURL == "" then
         warn("[OTC] Webhook URL is empty.")
         return false
     end
@@ -7207,23 +7210,23 @@ function sendWebhook(embed, content)
 
     local payload = {
         username = "OTC",
-        avatar_url = AvatarURL,
+        avatar_url = LateState.AvatarURL,
         embeds = {embed}
     }
 
     if content
-        and SendWebhookWithMentionEnabled
-        and DiscordUserID ~= "" then
+        and LateState.SendWebhookWithMentionEnabled
+        and LateState.DiscordUserID ~= "" then
         payload.content = content
         payload.allowed_mentions = {
             parse = {},
-            users = {DiscordUserID}
+            users = {LateState.DiscordUserID}
         }
     end
 
     local success, response = pcall(function()
         return httpRequest({
-            Url = WebhookURL,
+            Url = LateState.WebhookURL,
             Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json"
@@ -7298,17 +7301,17 @@ function getUserStats()
 end
 
 function getSecretMention(rarity)
-    if not SendWebhookWithMentionEnabled then
+    if not LateState.SendWebhookWithMentionEnabled then
         return nil
     end
 
-    if DiscordUserID == "" then
+    if LateState.DiscordUserID == "" then
         return nil
     end
 
     if type(rarity) == "string"
         and rarity:sub(1, 6) == "Secret" then
-        return "<@" .. DiscordUserID .. ">"
+        return "<@" .. LateState.DiscordUserID .. ">"
     end
 
     return nil
@@ -7398,7 +7401,7 @@ function sendOfflineHatch(data)
     local embed = {
         author = {
             name = "OTC",
-            icon_url = AvatarURL
+            icon_url = LateState.AvatarURL
         },
         title = "Offline Hatch Results",
         description = "📋・**Offline Info**",
@@ -7514,7 +7517,7 @@ function sendNormalHatch(result)
             local embed = {
                 author = {
                     name = "OTC",
-                    icon_url = AvatarURL
+                    icon_url = LateState.AvatarURL
                 },
                 title = title,
                 description = table.concat(descriptionParts, "\n"),
@@ -7640,7 +7643,7 @@ WebhookTab:CreateInput({
     RemoveTextAfterFocusLost = false,
     Flag = "WebhookURL",
     Callback = function(Value)
-        WebhookURL = Value
+        LateState.WebhookURL = Value
     end
 })
 
@@ -7651,7 +7654,7 @@ WebhookTab:CreateInput({
     RemoveTextAfterFocusLost = false,
     Flag = "DiscordUserID",
     Callback = function(Value)
-        DiscordUserID = Value
+        LateState.DiscordUserID = Value
     end
 })
 
@@ -7665,7 +7668,7 @@ WebhookTab:CreateInput({
         local number = tonumber(Value)
 
         if number and number >= 1 then
-            MinimumOneIn = math.floor(number)
+            LateState.MinimumOneIn = math.floor(number)
         end
     end
 })
@@ -7675,7 +7678,7 @@ WebhookTab:CreateToggle({
     CurrentValue = true,
     Flag = "SendWebhookWithMention",
     Callback = function(Value)
-        SendWebhookWithMentionEnabled = Value
+        LateState.SendWebhookWithMentionEnabled = Value
     end
 })
 
@@ -7684,7 +7687,7 @@ WebhookTab:CreateToggle({
     CurrentValue = true,
     Flag = "SendWebhook",
     Callback = function(Value)
-        SendWebhookEnabled = Value
+        LateState.SendWebhookEnabled = Value
     end
 })
 
