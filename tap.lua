@@ -71,6 +71,8 @@ local OTC = {
     },
 }
 
+OTC.Runtime = OTC.Runtime or {}
+
 local UpgradeConfig = require(
     ReplicatedStorage
         .Shared
@@ -525,13 +527,13 @@ local SettingsTab = Window:CreateTab({
     icon = "settings",
 })
 
-local ConfigFolder = "OTC"
-local ConfigFile = "config_" .. tostring(LocalPlayer.UserId) .. ".json"
-local ConfigPath = ConfigFolder .. "/" .. ConfigFile
+OTC.Runtime.ConfigFolder = "OTC"
+OTC.Runtime.ConfigFile = "config_" .. tostring(LocalPlayer.UserId) .. ".json"
+OTC.Runtime.ConfigPath = OTC.Runtime.ConfigFolder .. "/" .. OTC.Runtime.ConfigFile
 
-local RegisteredFlags = {}
-local AutoSaveEnabled = false
-local SelectedConfigFile = ConfigFile
+OTC.Runtime.RegisteredFlags = {}
+OTC.Runtime.AutoSaveEnabled = false
+OTC.Runtime.SelectedConfigFile = OTC.Runtime.ConfigFile
 
 function registerFlagElement(tab, methodName)
     local original = tab[methodName]
@@ -549,7 +551,7 @@ function registerFlagElement(tab, methodName)
                 if initialValue == nil then initialValue = options.Value end
                 if initialValue == nil then initialValue = options.CurrentValue end
 
-                RegisteredFlags[flagName] = {
+                OTC.Runtime.RegisteredFlags[flagName] = {
                     value = initialValue,
                     callback = nil,
                     element = nil,
@@ -557,9 +559,9 @@ function registerFlagElement(tab, methodName)
 
                 if callbackKey then
                     local originalCallback = options[callbackKey]
-                    RegisteredFlags[flagName].callback = originalCallback
+                    OTC.Runtime.RegisteredFlags[flagName].callback = originalCallback
                     options[callbackKey] = function(value, ...)
-                        RegisteredFlags[flagName].value = value
+                        OTC.Runtime.RegisteredFlags[flagName].value = value
                         return originalCallback(value, ...)
                     end
                 end
@@ -569,7 +571,7 @@ function registerFlagElement(tab, methodName)
         local element = original(self, options, ...)
         if type(options) == "table" then
             local flagName = options.flag or options.Flag
-            local entry = type(flagName) == "string" and RegisteredFlags[flagName]
+            local entry = type(flagName) == "string" and OTC.Runtime.RegisteredFlags[flagName]
             if entry then
                 entry.element = element
             end
@@ -585,15 +587,15 @@ for _, tab in ipairs({HomeTab, AutoTab, WorldTab, PetsTab, EggsTab, MinigamesTab
 end
 
 function ensureConfigFolder()
-    if not isfolder(ConfigFolder) then
-        makefolder(ConfigFolder)
+    if not isfolder(OTC.Runtime.ConfigFolder) then
+        makefolder(OTC.Runtime.ConfigFolder)
     end
 end
 
 function getConfigFiles()
     ensureConfigFolder()
     local files = {}
-    for _, path in ipairs(listfiles(ConfigFolder)) do
+    for _, path in ipairs(listfiles(OTC.Runtime.ConfigFolder)) do
         local name = path:match("[^/\\]+$")
         if name and name:match("^config_%d+%.json$") then
             table.insert(files, name)
@@ -601,7 +603,7 @@ function getConfigFiles()
     end
     table.sort(files)
     if #files == 0 then
-        table.insert(files, ConfigFile)
+        table.insert(files, OTC.Runtime.ConfigFile)
     end
     return files
 end
@@ -610,7 +612,7 @@ function saveConfig()
     local ok, err = pcall(function()
         ensureConfigFolder()
         local flags = {}
-        for name, entry in pairs(RegisteredFlags) do
+        for name, entry in pairs(OTC.Runtime.RegisteredFlags) do
             if entry.value ~= nil then
                 flags[name] = entry.value
             end
@@ -623,11 +625,11 @@ function saveConfig()
             Config = OTC.Config,
         }
 
-        writefile(ConfigPath, HttpService:JSONEncode(data))
+        writefile(OTC.Runtime.ConfigPath, HttpService:JSONEncode(data))
     end)
 
     if ok then
-        print("[OTC] Configuration saved: " .. ConfigFile)
+        print("[OTC] Configuration saved: " .. OTC.Runtime.ConfigFile)
     else
         warn("[OTC] Failed to save configuration:", err)
     end
@@ -637,10 +639,10 @@ end
 function loadConfig(fileName)
     local ok, err = pcall(function()
         ensureConfigFolder()
-        fileName = fileName or SelectedConfigFile
+        fileName = fileName or OTC.Runtime.SelectedConfigFile
         assert(type(fileName) == "string" and fileName:match("^config_%d+%.json$"), "Invalid config filename")
 
-        local path = ConfigFolder .. "/" .. fileName
+        local path = OTC.Runtime.ConfigFolder .. "/" .. fileName
         assert(isfile(path), "Config file not found")
         local data = HttpService:JSONDecode(readfile(path))
         assert(type(data) == "table" and type(data.Flags) == "table", "Invalid config data")
@@ -654,7 +656,7 @@ function loadConfig(fileName)
         end
 
         for name, value in pairs(data.Flags) do
-            local entry = RegisteredFlags[name]
+            local entry = OTC.Runtime.RegisteredFlags[name]
             if entry then
                 entry.value = value
                 local applied = false
@@ -686,7 +688,7 @@ SettingsTab:CreateToggle({
     flag = "OTCAutoSave",
     value = false,
     callback = function(value)
-        AutoSaveEnabled = value
+        OTC.Runtime.AutoSaveEnabled = value
     end,
 })
 
@@ -703,9 +705,9 @@ SettingsTab:CreateDropdown({
     description = "Select a configuration file to load.",
     flag = "OTCSelectedConfigFile",
     options = getConfigFiles(),
-    value = ConfigFile,
+    value = OTC.Runtime.ConfigFile,
     callback = function(value)
-        SelectedConfigFile = value
+        OTC.Runtime.SelectedConfigFile = value
     end,
 })
 
@@ -713,27 +715,27 @@ SettingsTab:CreateButton({
     name = "Load",
     description = "Load the selected JSON configuration.",
     callback = function()
-        loadConfig(SelectedConfigFile)
+        loadConfig(OTC.Runtime.SelectedConfigFile)
     end,
 })
 
 task.spawn(function()
     while true do
         task.wait(1)
-        if AutoSaveEnabled then
+        if OTC.Runtime.AutoSaveEnabled then
             local elapsed = 0
-            while elapsed < 300 and AutoSaveEnabled do
+            while elapsed < 300 and OTC.Runtime.AutoSaveEnabled do
                 task.wait(1)
                 elapsed += 1
             end
-            if AutoSaveEnabled then
+            if OTC.Runtime.AutoSaveEnabled then
                 saveConfig()
             end
         end
     end
 end)
 
-local HomeStartTime = os.clock()
+OTC.Runtime.HomeStartTime = os.clock()
 
 local PlayerInfoText = HomeTab:CreateText({
     name = "Player Info",
@@ -821,7 +823,7 @@ function UpdateHomeInfo()
     )
 
     PlaytimeText:Set(
-        FormatPlaytime(os.clock() - HomeStartTime)
+        FormatPlaytime(os.clock() - OTC.Runtime.HomeStartTime)
     )
 end
 
@@ -856,43 +858,43 @@ function formatNumber(number)
     return formatted
 end
 
-local RebirthOptions = {}
-local RebirthIndexes = {}
+OTC.Runtime.RebirthOptions = {}
+OTC.Runtime.RebirthIndexes = {}
 
 function generateRebirthOptions(maxIndex)
-    table.clear(RebirthOptions)
-    table.clear(RebirthIndexes)
+    table.clear(OTC.Runtime.RebirthOptions)
+    table.clear(OTC.Runtime.RebirthIndexes)
 
     for index = 1, maxIndex do
         local amount = 5 ^ (index - 1)
         local option = "+" .. formatNumber(amount)
 
-        table.insert(RebirthOptions, option)
-        RebirthIndexes[option] = index
+        table.insert(OTC.Runtime.RebirthOptions, option)
+        OTC.Runtime.RebirthIndexes[option] = index
     end
 end
 
-local maxIndex = 14
+OTC.Runtime.maxIndex = 14
 
-local configFolder = ReplicatedStorage:FindFirstChild("Shared")
-local progressionFolder = configFolder
-    and configFolder:FindFirstChild("Progression")
+OTC.Runtime.configFolder = ReplicatedStorage:FindFirstChild("Shared")
+OTC.Runtime.progressionFolder = OTC.Runtime.configFolder
+    and OTC.Runtime.configFolder:FindFirstChild("Progression")
 
-local buttonConfigModule = progressionFolder
-    and progressionFolder:FindFirstChild("RebirthButtonConfig")
+OTC.Runtime.buttonConfigModule = OTC.Runtime.progressionFolder
+    and OTC.Runtime.progressionFolder:FindFirstChild("RebirthButtonConfig")
 
-if buttonConfigModule then
+if OTC.Runtime.buttonConfigModule then
     local success, result = pcall(function()
-        local buttonConfig = require(buttonConfigModule)
+        local buttonConfig = require(OTC.Runtime.buttonConfigModule)
         return buttonConfig.GetMaximumOptions("Main")
     end)
 
     if success and type(result) == "number" then
-        maxIndex = result
+        OTC.Runtime.maxIndex = result
     end
 end
 
-generateRebirthOptions(maxIndex)
+generateRebirthOptions(OTC.Runtime.maxIndex)
 
 AutoTab:CreateToggle({
     name = "Auto Tap",
@@ -927,11 +929,11 @@ AutoTab:CreateDropdown({
     name = "Rebirth Type",
     description = "Choose the rebirth type option.",
     flag = "RebirthType",
-    options = RebirthOptions,
-    default = RebirthOptions[1],
+    options = OTC.Runtime.RebirthOptions,
+    default = OTC.Runtime.RebirthOptions[1],
 
     callback = function(value)
-        local index = RebirthIndexes[value]
+        local index = OTC.Runtime.RebirthIndexes[value]
 
         if index then
             OTC.Config.RebirthIndex = index
@@ -972,9 +974,9 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AntiAFKEnabled = false
-local AntiAFKConnection = nil
-local AntiAFKToken = 0
+OTC.Runtime.AntiAFKEnabled = false
+OTC.Runtime.AntiAFKConnection = nil
+OTC.Runtime.AntiAFKToken = 0
 
 HomeTab:CreateToggle({
     Name = "Anti AFK",
@@ -982,14 +984,14 @@ HomeTab:CreateToggle({
     Flag = "AntiAFK",
     Description = "Anti AFK.",
     Callback = function(Value)
-        AntiAFKEnabled = Value
-        AntiAFKToken += 1
+        OTC.Runtime.AntiAFKEnabled = Value
+        OTC.Runtime.AntiAFKToken += 1
 
-        local CurrentToken = AntiAFKToken
+        local CurrentToken = OTC.Runtime.AntiAFKToken
 
-        if AntiAFKConnection then
-            AntiAFKConnection:Disconnect()
-            AntiAFKConnection = nil
+        if OTC.Runtime.AntiAFKConnection then
+            OTC.Runtime.AntiAFKConnection:Disconnect()
+            OTC.Runtime.AntiAFKConnection = nil
         end
 
         if not Value then
@@ -1000,8 +1002,8 @@ HomeTab:CreateToggle({
         local VirtualUser = game:GetService("VirtualUser")
         local Player = Players.LocalPlayer
 
-        AntiAFKConnection = Player.Idled:Connect(function()
-            if not AntiAFKEnabled then
+        OTC.Runtime.AntiAFKConnection = Player.Idled:Connect(function()
+            if not OTC.Runtime.AntiAFKEnabled then
                 return
             end
 
@@ -1012,10 +1014,10 @@ HomeTab:CreateToggle({
         end)
 
         task.spawn(function()
-            while AntiAFKEnabled and AntiAFKToken == CurrentToken do
+            while OTC.Runtime.AntiAFKEnabled and OTC.Runtime.AntiAFKToken == CurrentToken do
                 task.wait(300)
 
-                if not AntiAFKEnabled or AntiAFKToken ~= CurrentToken then
+                if not OTC.Runtime.AntiAFKEnabled or OTC.Runtime.AntiAFKToken ~= CurrentToken then
                     break
                 end
 
@@ -1036,8 +1038,8 @@ HomeTab:CreateToggle({
     end
 })
 
-local SkillTreeNodes = {}
-local SkillTreeNodeNames = {}
+OTC.Runtime.SkillTreeNodes = {}
+OTC.Runtime.SkillTreeNodeNames = {}
 
 function collectSkillTreeNodes(node, visited)
     if type(node) ~= "table" or visited[node] then
@@ -1047,9 +1049,9 @@ function collectSkillTreeNodes(node, visited)
     visited[node] = true
 
     if type(node.Name) == "string"
-        and not SkillTreeNodeNames[node.Name] then
-        SkillTreeNodeNames[node.Name] = true
-        table.insert(SkillTreeNodes, node.Name)
+        and not OTC.Runtime.SkillTreeNodeNames[node.Name] then
+        OTC.Runtime.SkillTreeNodeNames[node.Name] = true
+        table.insert(OTC.Runtime.SkillTreeNodes, node.Name)
     end
 
     for key, child in pairs(node) do
@@ -1059,13 +1061,13 @@ function collectSkillTreeNodes(node, visited)
     end
 end
 
-local visitedSkillTreeTables = {}
+OTC.Runtime.visitedSkillTreeTables = {}
 
 for _, tree in pairs(SkillTreeConfig) do
-    collectSkillTreeNodes(tree, visitedSkillTreeTables)
+    collectSkillTreeNodes(tree, OTC.Runtime.visitedSkillTreeTables)
 end
 
-table.sort(SkillTreeNodes)
+table.sort(OTC.Runtime.SkillTreeNodes)
 
 AutoTab:CreateToggle({
     name = "Auto Upgrade Gems",
@@ -1084,7 +1086,7 @@ AutoTab:CreateToggle({
             while OTC.Config.AutoUnlockSkillTree do
                 local unlockedSomething = false
 
-                for _, nodeName in ipairs(SkillTreeNodes) do
+                for _, nodeName in ipairs(OTC.Runtime.SkillTreeNodes) do
                     if not OTC.Config.AutoUnlockSkillTree then
                         break
                     end
@@ -1205,8 +1207,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoClaimIndexAll = false
-local IndexClaimSession = 0
+OTC.Runtime.AutoClaimIndexAll = false
+OTC.Runtime.IndexClaimSession = 0
 
 AutoTab:CreateToggle({
     name = "Auto Claim Index All",
@@ -1214,18 +1216,18 @@ AutoTab:CreateToggle({
     flag = "AutoClaimIndexAll",
     value = false,
     callback = function(value)
-        AutoClaimIndexAll = value
-        IndexClaimSession += 1
+        OTC.Runtime.AutoClaimIndexAll = value
+        OTC.Runtime.IndexClaimSession += 1
 
-        local session = IndexClaimSession
+        local session = OTC.Runtime.IndexClaimSession
 
         if not value then
             return
         end
 
         task.spawn(function()
-            while AutoClaimIndexAll
-                and IndexClaimSession == session do
+            while OTC.Runtime.AutoClaimIndexAll
+                and OTC.Runtime.IndexClaimSession == session do
 
                 local success, err = pcall(function()
                     local replica = DataController:GetReplica()
@@ -1239,8 +1241,8 @@ AutoTab:CreateToggle({
                     local claimables = PetIndexCatalog.Claimables(pets)
 
                     for _, item in ipairs(claimables) do
-                        if not AutoClaimIndexAll
-                            or IndexClaimSession ~= session then
+                        if not OTC.Runtime.AutoClaimIndexAll
+                            or OTC.Runtime.IndexClaimSession ~= session then
                             break
                         end
 
@@ -1269,10 +1271,10 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoBuyDoubleJumps = false
-local DoubleJumpSession = 0
+OTC.Runtime.AutoBuyDoubleJumps = false
+OTC.Runtime.DoubleJumpSession = 0
 
-local DoubleJumpPosition = CFrame.new(
+OTC.Runtime.DoubleJumpPosition = CFrame.new(
     -98.6733017, -516.033081, -1679.99146,
     0.963639021, 0, 0.267207414,
     0, 1, 0,
@@ -1296,18 +1298,18 @@ AutoTab:CreateToggle({
     value = false,
     description = "Automatically buys the next available +1 Jump upgrade in the current world.",
     callback = function(value)
-        AutoBuyDoubleJumps = value
-        DoubleJumpSession += 1
+        OTC.Runtime.AutoBuyDoubleJumps = value
+        OTC.Runtime.DoubleJumpSession += 1
 
-        local session = DoubleJumpSession
+        local session = OTC.Runtime.DoubleJumpSession
 
         if not value then
             return
         end
 
         task.spawn(function()
-            while AutoBuyDoubleJumps
-                and DoubleJumpSession == session do
+            while OTC.Runtime.AutoBuyDoubleJumps
+                and OTC.Runtime.DoubleJumpSession == session do
 
                 local success, err = pcall(function()
                     local replica = DataController:GetReplica()
@@ -1350,7 +1352,7 @@ AutoTab:CreateToggle({
 
                         root.CFrame = CFrame.new(position + Vector3.new(0, 3, 0))
                     else
-                        root.CFrame = DoubleJumpPosition
+                        root.CFrame = OTC.Runtime.DoubleJumpPosition
                     end
 
                     task.wait(0.25)
@@ -1371,7 +1373,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-local ShinyStars = {
+OTC.Runtime.ShinyStars = {
     {Id = "Spawn1", World = "Main", Island = "Spawn", Pos = Vector3.new(-79.69999694824219, -49.06557846069336, -1930.4000244140625)},
     {Id = "Spawn2", World = "Main", Island = "Spawn", Pos = Vector3.new(-61.90705490112305, -53.56557846069336, -1791.1435546875)},
     {Id = "Spawn3", World = "Main", Island = "Spawn", Pos = Vector3.new(53.599998474121094, -513.2655639648438, -2015.699951171875)},
@@ -1514,14 +1516,14 @@ function CollectShinyStar(Star)
     end)
 end
 
-local ShinyStarWorkerRunning = false
+OTC.Runtime.ShinyStarWorkerRunning = false
 
 function StartShinyStarCollection()
-    if ShinyStarWorkerRunning then
+    if OTC.Runtime.ShinyStarWorkerRunning then
         return
     end
 
-    ShinyStarWorkerRunning = true
+    OTC.Runtime.ShinyStarWorkerRunning = true
 
     task.spawn(function()
         while OTC.Config.AutoCollectShinyStars do
@@ -1534,7 +1536,7 @@ function StartShinyStarCollection()
 
                 local hasMissing = false
 
-                for _, Star in ipairs(ShinyStars) do
+                for _, Star in ipairs(OTC.Runtime.ShinyStars) do
                     if Star.World == world and not IsShinyStarFound(Star.Id) then
                         hasMissing = true
                         allFound = false
@@ -1543,7 +1545,7 @@ function StartShinyStarCollection()
                 end
 
                 if hasMissing and TravelToShinyStarWorld(world) then
-                    for _, Star in ipairs(ShinyStars) do
+                    for _, Star in ipairs(OTC.Runtime.ShinyStars) do
                         if not OTC.Config.AutoCollectShinyStars then
                             break
                         end
@@ -1563,7 +1565,7 @@ function StartShinyStarCollection()
             task.wait(5)
         end
 
-        ShinyStarWorkerRunning = false
+        OTC.Runtime.ShinyStarWorkerRunning = false
     end)
 end
 
@@ -1581,8 +1583,8 @@ AutoTab:CreateToggle({
     end,
 })
 
-local ClickerChestWorkerRunning = false
-local CurrentClickerChest = nil
+OTC.Runtime.ClickerChestWorkerRunning = false
+OTC.Runtime.CurrentClickerChest = nil
 
 function GetClickerChestFolder()
     return workspace:FindFirstChild("ClickerChest")
@@ -1741,7 +1743,7 @@ function ProcessClickerChest(Model)
         return
     end
 
-    CurrentClickerChest = Model
+    OTC.Runtime.CurrentClickerChest = Model
 
     while OTC.Config.AutoClaimClickerChests do
         if not Model.Parent then
@@ -1778,8 +1780,8 @@ function ProcessClickerChest(Model)
         task.wait(OTC.Config.ClickerChestDelay or 0.5)
     end
 
-    if CurrentClickerChest == Model then
-        CurrentClickerChest = nil
+    if OTC.Runtime.CurrentClickerChest == Model then
+        OTC.Runtime.CurrentClickerChest = nil
     end
 end
 
@@ -1824,11 +1826,11 @@ function ProcessClickerChestsOnIsland(Island)
 end
 
 function StartClickerChestWorker()
-    if ClickerChestWorkerRunning then
+    if OTC.Runtime.ClickerChestWorkerRunning then
         return
     end
 
-    ClickerChestWorkerRunning = true
+    OTC.Runtime.ClickerChestWorkerRunning = true
 
     task.spawn(function()
         while OTC.Config.AutoClaimClickerChests do
@@ -1847,8 +1849,8 @@ function StartClickerChestWorker()
             task.wait(1)
         end
 
-        CurrentClickerChest = nil
-        ClickerChestWorkerRunning = false
+        OTC.Runtime.CurrentClickerChest = nil
+        OTC.Runtime.ClickerChestWorkerRunning = false
     end)
 end
 
@@ -1866,7 +1868,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-local IslandAttackToken = 0
+OTC.Runtime.IslandAttackToken = 0
 
 function getIslandAttackRoot()
     local character = LocalPlayer.Character
@@ -1944,13 +1946,13 @@ function runIslandAttack(token)
     local spotsFolder = Workspace:WaitForChild("IslandBreakableSpots")
 
     while OTC.Config.AutoAttackIslandBreakables
-        and IslandAttackToken == token do
+        and OTC.Runtime.IslandAttackToken == token do
 
         local islands = GetIslandAttackOrder(spotsFolder)
 
         for _, island in ipairs(islands) do
             if not OTC.Config.AutoAttackIslandBreakables
-                or IslandAttackToken ~= token then
+                or OTC.Runtime.IslandAttackToken ~= token then
                 break
             end
 
@@ -1967,7 +1969,7 @@ function runIslandAttack(token)
                     local target = getIslandAttackTarget(spot.Type)
 
                     while OTC.Config.AutoAttackIslandBreakables
-                        and IslandAttackToken == token
+                        and OTC.Runtime.IslandAttackToken == token
                         and not target do
 
                         local root = getIslandAttackRoot()
@@ -1999,7 +2001,7 @@ function runIslandAttack(token)
                     end
 
                     while OTC.Config.AutoAttackIslandBreakables
-                        and IslandAttackToken == token
+                        and OTC.Runtime.IslandAttackToken == token
                         and target
                         and not islandAttackTargetDestroyed(target) do
 
@@ -2050,10 +2052,10 @@ AutoTab:CreateToggle({
     flag = "AutoAttackIslandBreakables",
     callback = function(value)
         OTC.Config.AutoAttackIslandBreakables = value
-        IslandAttackToken += 1
+        OTC.Runtime.IslandAttackToken += 1
 
         if value then
-            local token = IslandAttackToken
+            local token = OTC.Runtime.IslandAttackToken
 
             task.spawn(function()
                 local ok, err = pcall(function()
@@ -2063,7 +2065,7 @@ AutoTab:CreateToggle({
                 if not ok then
                     warn("[OTC] Island attack error:", err)
 
-                    if IslandAttackToken == token then
+                    if OTC.Runtime.IslandAttackToken == token then
                         OTC.Config.AutoAttackIslandBreakables = false
                     end
                 end
@@ -2072,7 +2074,7 @@ AutoTab:CreateToggle({
     end,
 })
 
-local AutoClaimChestsRunning = false
+OTC.Runtime.AutoClaimChestsRunning = false
 
 function getReadyTapChest(id)
     local replica = DataController:GetReplica()
@@ -2096,7 +2098,7 @@ function getReadyTapChest(id)
     return nil
 end
 
-local ChestIslandMap = {
+OTC.Runtime.ChestIslandMap = {
     SkyIsland = "Sky Island",
     Desert = "Desert",
 }
@@ -2110,7 +2112,7 @@ function autoClaimChests()
                 break
             end
 
-            local islandName = ChestIslandMap[id]
+            local islandName = OTC.Runtime.ChestIslandMap[id]
             local landing = islandName and IslandLandings[islandName]
 
             if landing and typeof(landing.Position) == "Vector3" then
@@ -2191,7 +2193,7 @@ function autoClaimChests()
         task.wait(1)
     end
 
-    AutoClaimChestsRunning = false
+    OTC.Runtime.AutoClaimChestsRunning = false
 end
 
 AutoTab:CreateToggle({
@@ -2202,18 +2204,18 @@ AutoTab:CreateToggle({
     Callback = function(value)
         OTC.Config.AutoClaimChests = value
 
-        if value and not AutoClaimChestsRunning then
-            AutoClaimChestsRunning = true
+        if value and not OTC.Runtime.AutoClaimChestsRunning then
+            OTC.Runtime.AutoClaimChestsRunning = true
             task.spawn(autoClaimChests)
         end
     end,
 })
 
-local AutoLuckyDucky = false
+OTC.Runtime.AutoLuckyDucky = false
 
 function StartAutoLuckyDucky()
     task.spawn(function()
-        while AutoLuckyDucky do
+        while OTC.Runtime.AutoLuckyDucky do
             local Success, Caught = pcall(function()
                 return LuckyDuckyController:CatchShown()
             end)
@@ -2232,7 +2234,7 @@ AutoTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoLuckyDucky",
     Callback = function(Value)
-        AutoLuckyDucky = Value
+        OTC.Runtime.AutoLuckyDucky = Value
 
         if Value then
             StartAutoLuckyDucky()
@@ -2240,8 +2242,8 @@ AutoTab:CreateToggle({
     end
 })
 
-local AutoLuckyEggMachine = false
-local LuckyEggMachineToken = 0
+OTC.Runtime.AutoLuckyEggMachine = false
+OTC.Runtime.LuckyEggMachineToken = 0
 
 function TeleportToLuckyEggMachine()
     local Character = LocalPlayer.Character
@@ -2329,11 +2331,11 @@ function ActivateLuckyEggMachine()
 end
 
 function StartAutoLuckyEggMachine()
-    LuckyEggMachineToken += 1
-    local Token = LuckyEggMachineToken
+    OTC.Runtime.LuckyEggMachineToken += 1
+    local Token = OTC.Runtime.LuckyEggMachineToken
 
     task.spawn(function()
-        while AutoLuckyEggMachine and Token == LuckyEggMachineToken do
+        while OTC.Runtime.AutoLuckyEggMachine and Token == OTC.Runtime.LuckyEggMachineToken do
             local Ready = GetLuckyEggStatus()
 
             if Ready then
@@ -2350,21 +2352,21 @@ AutoTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoLuckyEggMachine",
     Callback = function(Value)
-        AutoLuckyEggMachine = Value
+        OTC.Runtime.AutoLuckyEggMachine = Value
 
         if Value then
             StartAutoLuckyEggMachine()
         else
-            LuckyEggMachineToken += 1
+            OTC.Runtime.LuckyEggMachineToken += 1
         end
     end
 })
 
-local IslandOptions = {"None", "World 2 Spawn"}
-local IslandNames = {}
+OTC.Runtime.IslandOptions = {"None", "World 2 Spawn"}
+OTC.Runtime.IslandNames = {}
 
 for name, config in pairs(ProgressionIslandConfig.Islands) do
-    table.insert(IslandNames, {
+    table.insert(OTC.Runtime.IslandNames, {
         Name = name,
         Order = config.Order or math.huge,
         World = "Main"
@@ -2372,14 +2374,14 @@ for name, config in pairs(ProgressionIslandConfig.Islands) do
 end
 
 for name, config in pairs(RiftIslandConfig.Islands) do
-    table.insert(IslandNames, {
+    table.insert(OTC.Runtime.IslandNames, {
         Name = name,
         Order = config.Order or math.huge,
         World = "TimeRift"
     })
 end
 
-table.sort(IslandNames, function(a, b)
+table.sort(OTC.Runtime.IslandNames, function(a, b)
     if a.World ~= b.World then
         return a.World == "Main"
     end
@@ -2391,18 +2393,18 @@ table.sort(IslandNames, function(a, b)
     return a.Order < b.Order
 end)
 
-for _, island in ipairs(IslandNames) do
-    table.insert(IslandOptions, island.Name)
+for _, island in ipairs(OTC.Runtime.IslandNames) do
+    table.insert(OTC.Runtime.IslandOptions, island.Name)
 end
 
 WorldTab:CreateDropdown({
     name = "Islands",
     description = "Select an island to teleport to.",
     flag = "Islands",
-    options = IslandOptions,
+    options = OTC.Runtime.IslandOptions,
     value = "None",
     callback = function(value)
-        if value == "None" or not table.find(IslandOptions, value) then
+        if value == "None" or not table.find(OTC.Runtime.IslandOptions, value) then
             return
         end
 
@@ -2445,8 +2447,8 @@ WorldTab:CreateDropdown({
     end,
 })
 
-local UnlockEveryIslandEnabled = false
-local UnlockEveryIslandRunning = false
+OTC.Runtime.UnlockEveryIslandEnabled = false
+OTC.Runtime.UnlockEveryIslandRunning = false
 
 function GetIslandUnlockTargets()
     local targets = {}
@@ -2513,7 +2515,7 @@ function TravelToUnlockWorld(world)
     end
 
     local deadline = os.clock() + 12
-    while UnlockEveryIslandEnabled and os.clock() < deadline do
+    while OTC.Runtime.UnlockEveryIslandEnabled and os.clock() < deadline do
         if LocalPlayer:GetAttribute("World") == world then
             return true
         end
@@ -2524,7 +2526,7 @@ function TravelToUnlockWorld(world)
 end
 
 function unlockVisitIsland(target)
-    if not UnlockEveryIslandEnabled then
+    if not OTC.Runtime.UnlockEveryIslandEnabled then
         return false
     end
 
@@ -2585,12 +2587,12 @@ function unlockVisitIsland(target)
 
         tween:Play()
 
-        while UnlockEveryIslandEnabled
+        while OTC.Runtime.UnlockEveryIslandEnabled
             and tween.PlaybackState == Enum.PlaybackState.Playing do
             RunService.Heartbeat:Wait()
         end
 
-        if not UnlockEveryIslandEnabled then
+        if not OTC.Runtime.UnlockEveryIslandEnabled then
             tween:Cancel()
         end
 
@@ -2614,7 +2616,7 @@ function unlockVisitIsland(target)
     end
 
     local deadline = os.clock() + 8
-    while UnlockEveryIslandEnabled and os.clock() < deadline and result == nil do
+    while OTC.Runtime.UnlockEveryIslandEnabled and os.clock() < deadline and result == nil do
         task.wait(0.1)
     end
 
@@ -2629,13 +2631,13 @@ WorldTab:CreateToggle({
     value = false,
     flag = "UnlockEveryIsland",
     callback = function(value)
-        UnlockEveryIslandEnabled = value
+        OTC.Runtime.UnlockEveryIslandEnabled = value
 
-        if not value or UnlockEveryIslandRunning then
+        if not value or OTC.Runtime.UnlockEveryIslandRunning then
             return
         end
 
-        UnlockEveryIslandRunning = true
+        OTC.Runtime.UnlockEveryIslandRunning = true
 
         task.spawn(function()
             local success, err = pcall(function()
@@ -2643,7 +2645,7 @@ WorldTab:CreateToggle({
                 local currentWorld = nil
 
                 for _, target in ipairs(targets) do
-                    if not UnlockEveryIslandEnabled then
+                    if not OTC.Runtime.UnlockEveryIslandEnabled then
                         break
                     end
 
@@ -2672,16 +2674,16 @@ WorldTab:CreateToggle({
                 warn("[OTC Unlock Islands] Error:", err)
             end
 
-            UnlockEveryIslandEnabled = false
-            UnlockEveryIslandRunning = false
+            OTC.Runtime.UnlockEveryIslandEnabled = false
+            OTC.Runtime.UnlockEveryIslandRunning = false
         end)
     end,
 })
 
-local PetOptions = {"None"}
-local PetDropdown
-local SelectedPetName = ""
-local IsRefreshingPets = false
+OTC.Runtime.PetOptions = {"None"}
+OTC.Runtime.PetDropdown
+OTC.Runtime.SelectedPetName = ""
+OTC.Runtime.IsRefreshingPets = false
 
 function GetPetName(option)
     if type(option) ~= "string" then
@@ -2722,11 +2724,11 @@ function HasMutation(pet)
 end
 
 function RefreshPets()
-    if IsRefreshingPets then
+    if OTC.Runtime.IsRefreshingPets then
         return
     end
 
-    IsRefreshingPets = true
+    OTC.Runtime.IsRefreshingPets = true
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
@@ -2806,9 +2808,9 @@ function RefreshPets()
 
         local updatedSelection = "None"
 
-        if SelectedPetName ~= "" then
+        if OTC.Runtime.SelectedPetName ~= "" then
             for _, option in ipairs(newOptions) do
-                if GetPetName(option) == SelectedPetName then
+                if GetPetName(option) == OTC.Runtime.SelectedPetName then
                     updatedSelection = option
                     break
                 end
@@ -2816,19 +2818,19 @@ function RefreshPets()
         end
 
         if updatedSelection == "None" then
-            SelectedPetName = ""
+            OTC.Runtime.SelectedPetName = ""
         end
 
-        PetOptions = newOptions
+        OTC.Runtime.PetOptions = newOptions
         OTC.Config.SelectedPet = updatedSelection
 
-        if PetDropdown then
-            PetDropdown:Refresh(newOptions)
-            PetDropdown:Set(updatedSelection)
+        if OTC.Runtime.PetDropdown then
+            OTC.Runtime.PetDropdown:Refresh(newOptions)
+            OTC.Runtime.PetDropdown:Set(updatedSelection)
         end
     end)
 
-    IsRefreshingPets = false
+    OTC.Runtime.IsRefreshingPets = false
 
     if not success then
         warn("[OTC] Pets refresh error:", err)
@@ -2880,14 +2882,14 @@ PetsTab:CreateSection({
     name = "▶ Golden"
 })
 
-PetDropdown = PetsTab:CreateDropdown({
+OTC.Runtime.PetDropdown = PetsTab:CreateDropdown({
     name = "Pets",
     description = "Live inventory with mutation counts and equipped status.",
-    options = PetOptions,
+    options = OTC.Runtime.PetOptions,
     value = "None",
     flag = "GoldenPetSelection",
     callback = function(value)
-        if IsRefreshingPets then
+        if OTC.Runtime.IsRefreshingPets then
             return
         end
 
@@ -2896,7 +2898,7 @@ PetDropdown = PetsTab:CreateDropdown({
         end
 
         if value == "None" or value == "No pets" then
-            SelectedPetName = ""
+            OTC.Runtime.SelectedPetName = ""
             OTC.Config.SelectedPet = "None"
 
             Window:Notify({
@@ -2909,7 +2911,7 @@ PetDropdown = PetsTab:CreateDropdown({
             return
         end
 
-        SelectedPetName = GetPetName(value)
+        OTC.Runtime.SelectedPetName = GetPetName(value)
         OTC.Config.SelectedPet = value
 
         Window:Notify({
@@ -2923,24 +2925,24 @@ PetDropdown = PetsTab:CreateDropdown({
 
 RefreshPets()
 
-local GoldenOptions = {}
-local GoldenCounts = {}
+OTC.Runtime.GoldenOptions = {}
+OTC.Runtime.GoldenCounts = {}
 
 for count, chance in ipairs(MachineConfig.Golden.Chances) do
     local option = string.format("%d (%.0f%%)", count, chance)
 
-    table.insert(GoldenOptions, option)
-    GoldenCounts[option] = count
+    table.insert(OTC.Runtime.GoldenOptions, option)
+    OTC.Runtime.GoldenCounts[option] = count
 end
 
 PetsTab:CreateDropdown({
     name = "Golden Chance",
     description = "Select how many pets to use for each craft.",
     flag = "GoldenChance",
-    options = GoldenOptions,
-    value = GoldenOptions[1],
+    options = OTC.Runtime.GoldenOptions,
+    value = OTC.Runtime.GoldenOptions[1],
     callback = function(value)
-        local count = GoldenCounts[value]
+        local count = OTC.Runtime.GoldenCounts[value]
 
         if count then
             OTC.Config.GoldenPetCount = count
@@ -2968,7 +2970,7 @@ PetsTab:CreateToggle({
         task.spawn(function()
             while OTC.Config.AutoGoldenPets do
                 local success, err = pcall(function()
-                    local selectedName = SelectedPetName
+                    local selectedName = OTC.Runtime.SelectedPetName
 
                     if selectedName == "" then
                         return
@@ -3114,10 +3116,10 @@ task.spawn(function()
     end
 end)
 
-local DiamondPetOptions = {"None"}
-local DiamondPetDropdown
-local SelectedDiamondPetName = ""
-local IsRefreshingDiamondPets = false
+OTC.Runtime.DiamondPetOptions = {"None"}
+OTC.Runtime.DiamondPetDropdown
+OTC.Runtime.SelectedDiamondPetName = ""
+OTC.Runtime.IsRefreshingDiamondPets = false
 
 function GetDiamondPetName(option)
     if type(option) ~= "string" then
@@ -3134,11 +3136,11 @@ function HasDiamondMutation(pet)
 end
 
 function RefreshDiamondPets()
-    if IsRefreshingDiamondPets then
+    if OTC.Runtime.IsRefreshingDiamondPets then
         return
     end
 
-    IsRefreshingDiamondPets = true
+    OTC.Runtime.IsRefreshingDiamondPets = true
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
@@ -3222,9 +3224,9 @@ function RefreshDiamondPets()
 
         local updatedSelection = "None"
 
-        if SelectedDiamondPetName ~= "" then
+        if OTC.Runtime.SelectedDiamondPetName ~= "" then
             for _, option in ipairs(newOptions) do
-                if GetDiamondPetName(option) == SelectedDiamondPetName then
+                if GetDiamondPetName(option) == OTC.Runtime.SelectedDiamondPetName then
                     updatedSelection = option
                     break
                 end
@@ -3232,19 +3234,19 @@ function RefreshDiamondPets()
         end
 
         if updatedSelection == "None" then
-            SelectedDiamondPetName = ""
+            OTC.Runtime.SelectedDiamondPetName = ""
         end
 
-        DiamondPetOptions = newOptions
+        OTC.Runtime.DiamondPetOptions = newOptions
         OTC.Config.SelectedDiamondPet = updatedSelection
 
-        if DiamondPetDropdown then
-            DiamondPetDropdown:Refresh(newOptions)
-            DiamondPetDropdown:Set(updatedSelection)
+        if OTC.Runtime.DiamondPetDropdown then
+            OTC.Runtime.DiamondPetDropdown:Refresh(newOptions)
+            OTC.Runtime.DiamondPetDropdown:Set(updatedSelection)
         end
     end)
 
-    IsRefreshingDiamondPets = false
+    OTC.Runtime.IsRefreshingDiamondPets = false
 
     if not success then
         warn("[OTC Diamond] Pets refresh error:", err)
@@ -3274,14 +3276,14 @@ PetsTab:CreateSection({
     name = "▶ Diamond"
 })
 
-DiamondPetDropdown = PetsTab:CreateDropdown({
+OTC.Runtime.DiamondPetDropdown = PetsTab:CreateDropdown({
     name = "Golden Pets",
     description = "Live inventory with mutation counts and equipped status.",
-    options = DiamondPetOptions,
+    options = OTC.Runtime.DiamondPetOptions,
     value = "None",
     flag = "DiamondPetSelection",
     callback = function(value)
-        if IsRefreshingDiamondPets then
+        if OTC.Runtime.IsRefreshingDiamondPets then
             return
         end
 
@@ -3290,7 +3292,7 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
         end
 
         if value == "None" or value == "No pets" then
-            SelectedDiamondPetName = ""
+            OTC.Runtime.SelectedDiamondPetName = ""
             OTC.Config.SelectedDiamondPet = "None"
 
             Window:Notify({
@@ -3303,7 +3305,7 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
             return
         end
 
-        SelectedDiamondPetName = GetDiamondPetName(value)
+        OTC.Runtime.SelectedDiamondPetName = GetDiamondPetName(value)
         OTC.Config.SelectedDiamondPet = value
 
         Window:Notify({
@@ -3317,24 +3319,24 @@ DiamondPetDropdown = PetsTab:CreateDropdown({
 
 RefreshDiamondPets()
 
-local DiamondOptions = {}
-local DiamondCounts = {}
+OTC.Runtime.DiamondOptions = {}
+OTC.Runtime.DiamondCounts = {}
 
 for count, chance in ipairs(MachineConfig.Diamond.Chances) do
     local option = string.format("%d (%.0f%%)", count, chance)
 
-    table.insert(DiamondOptions, option)
-    DiamondCounts[option] = count
+    table.insert(OTC.Runtime.DiamondOptions, option)
+    OTC.Runtime.DiamondCounts[option] = count
 end
 
 PetsTab:CreateDropdown({
     name = "Diamond Chance",
     description = "Select how many Golden pets to use for each craft.",
     flag = "DiamondChance",
-    options = DiamondOptions,
-    value = DiamondOptions[1],
+    options = OTC.Runtime.DiamondOptions,
+    value = OTC.Runtime.DiamondOptions[1],
     callback = function(value)
-        local count = DiamondCounts[value]
+        local count = OTC.Runtime.DiamondCounts[value]
 
         if count then
             OTC.Config.DiamondPetCount = count
@@ -3365,7 +3367,7 @@ PetsTab:CreateToggle({
 
             while OTC.Config.AutoDiamondPets do
                 local success, err = pcall(function()
-                    local selectedName = SelectedDiamondPetName
+                    local selectedName = OTC.Runtime.SelectedDiamondPetName
 
                     if selectedName == "" then
                         return
@@ -3520,10 +3522,10 @@ PetsTab:CreateSection({
     name = "▶ Rainbow"
 })
 
-local RainbowPetOptions = {"None"}
-local RainbowPetDropdown
-local SelectedRainbowPetName = ""
-local IsRefreshingRainbowPets = false
+OTC.Runtime.RainbowPetOptions = {"None"}
+OTC.Runtime.RainbowPetDropdown
+OTC.Runtime.SelectedRainbowPetName = ""
+OTC.Runtime.IsRefreshingRainbowPets = false
 
 function GetRainbowPetName(option)
     if type(option) ~= "string" then
@@ -3534,11 +3536,11 @@ function GetRainbowPetName(option)
 end
 
 function RefreshRainbowPets()
-    if IsRefreshingRainbowPets then
+    if OTC.Runtime.IsRefreshingRainbowPets then
         return
     end
 
-    IsRefreshingRainbowPets = true
+    OTC.Runtime.IsRefreshingRainbowPets = true
 
     local success, err = pcall(function()
         local replica = DataController:GetReplica()
@@ -3607,9 +3609,9 @@ function RefreshRainbowPets()
 
         local updatedSelection = "None"
 
-        if SelectedRainbowPetName ~= "" then
+        if OTC.Runtime.SelectedRainbowPetName ~= "" then
             for _, option in ipairs(newOptions) do
-                if GetRainbowPetName(option) == SelectedRainbowPetName then
+                if GetRainbowPetName(option) == OTC.Runtime.SelectedRainbowPetName then
                     updatedSelection = option
                     break
                 end
@@ -3617,45 +3619,45 @@ function RefreshRainbowPets()
         end
 
         if updatedSelection == "None" then
-            SelectedRainbowPetName = ""
+            OTC.Runtime.SelectedRainbowPetName = ""
         end
 
         if #newOptions == 0 then
             table.insert(newOptions, "None")
         end
 
-        RainbowPetOptions = newOptions
+        OTC.Runtime.RainbowPetOptions = newOptions
         OTC.Config.SelectedRainbowPet = updatedSelection
 
-        if RainbowPetDropdown then
-            RainbowPetDropdown:Refresh(newOptions)
-            RainbowPetDropdown:Set(updatedSelection)
+        if OTC.Runtime.RainbowPetDropdown then
+            OTC.Runtime.RainbowPetDropdown:Refresh(newOptions)
+            OTC.Runtime.RainbowPetDropdown:Set(updatedSelection)
         end
     end)
 
-    IsRefreshingRainbowPets = false
+    OTC.Runtime.IsRefreshingRainbowPets = false
 
     if not success then
         warn("[OTC Rainbow] Pets refresh error:", err)
     end
 end
 
-RainbowPetDropdown = PetsTab:CreateDropdown({
+OTC.Runtime.RainbowPetDropdown = PetsTab:CreateDropdown({
     name = "Diamond Pets",
     description = "Select the Diamond pet to fuse into Rainbow.",
-    options = RainbowPetOptions,
+    options = OTC.Runtime.RainbowPetOptions,
     value = "None",
     flag = "RainbowPetSelection",
     callback = function(value)
-        if IsRefreshingRainbowPets then
+        if OTC.Runtime.IsRefreshingRainbowPets then
             return
         end
 
         if value == "None" or value == "No pets" then
-            SelectedRainbowPetName = ""
+            OTC.Runtime.SelectedRainbowPetName = ""
             OTC.Config.SelectedRainbowPet = "None"
         else
-            SelectedRainbowPetName = GetRainbowPetName(value)
+            OTC.Runtime.SelectedRainbowPetName = GetRainbowPetName(value)
             OTC.Config.SelectedRainbowPet = value
         end
     end,
@@ -3663,9 +3665,9 @@ RainbowPetDropdown = PetsTab:CreateDropdown({
 
 RefreshRainbowPets()
 
-local RainbowCountOptions = {}
-local RainbowCountValues = {}
-local RainbowDurationLabels = {
+OTC.Runtime.RainbowCountOptions = {}
+OTC.Runtime.RainbowCountValues = {}
+OTC.Runtime.RainbowDurationLabels = {
     [2] = "5h",
     [3] = "2h30",
     [4] = "1h",
@@ -3676,18 +3678,18 @@ for count = MachineConfig.Shiny.MinPets, #MachineConfig.Shiny.Durations do
     local option = string.format(
         "%d (%s)",
         count,
-        RainbowDurationLabels[count]
+        OTC.Runtime.RainbowDurationLabels[count]
     )
 
-    table.insert(RainbowCountOptions, option)
-    RainbowCountValues[option] = count
+    table.insert(OTC.Runtime.RainbowCountOptions, option)
+    OTC.Runtime.RainbowCountValues[option] = count
 end
 
-local SelectedRainbowCount = RainbowCountOptions[1]
+OTC.Runtime.SelectedRainbowCount = OTC.Runtime.RainbowCountOptions[1]
 
-for option, count in pairs(RainbowCountValues) do
+for option, count in pairs(OTC.Runtime.RainbowCountValues) do
     if count == OTC.Config.RainbowPetCount then
-        SelectedRainbowCount = option
+        OTC.Runtime.SelectedRainbowCount = option
         break
     end
 end
@@ -3696,10 +3698,10 @@ PetsTab:CreateDropdown({
     name = "Rainbow Amount",
     description = "Select the number of Diamond pets and crafting duration.",
     flag = "RainbowAmount",
-    options = RainbowCountOptions,
-    value = SelectedRainbowCount,
+    options = OTC.Runtime.RainbowCountOptions,
+    value = OTC.Runtime.SelectedRainbowCount,
     callback = function(value)
-        local count = RainbowCountValues[value]
+        local count = OTC.Runtime.RainbowCountValues[value]
 
         if count then
             OTC.Config.RainbowPetCount = count
@@ -3792,7 +3794,7 @@ PetsTab:CreateToggle({
                         end
                     end
 
-                    local selectedName = SelectedRainbowPetName
+                    local selectedName = OTC.Runtime.SelectedRainbowPetName
                     local requiredCount = OTC.Config.RainbowPetCount
 
                     if selectedName == ""
@@ -3851,13 +3853,13 @@ task.spawn(function()
     end
 end)
 
-local RainbowClaimToken = 0
+OTC.Runtime.RainbowClaimToken = 0
 
 function AutoClaimRainbowLoop(token)
     local lastClaims = {}
 
     while OTC.Config.AutoClaimRainbowPets
-        and token == RainbowClaimToken
+        and token == OTC.Runtime.RainbowClaimToken
     do
         local replica = DataController:GetReplica()
         local data = replica and replica.Data
@@ -3870,7 +3872,7 @@ function AutoClaimRainbowLoop(token)
 
             for craftId, craft in pairs(queue) do
                 if not OTC.Config.AutoClaimRainbowPets
-                    or token ~= RainbowClaimToken
+                    or token ~= OTC.Runtime.RainbowClaimToken
                 then
                     return
                 end
@@ -3930,10 +3932,10 @@ PetsTab:CreateToggle({
     value = OTC.Config.AutoClaimRainbowPets,
     callback = function(value)
         OTC.Config.AutoClaimRainbowPets = value
-        RainbowClaimToken += 1
+        OTC.Runtime.RainbowClaimToken += 1
 
         if value then
-            local token = RainbowClaimToken
+            local token = OTC.Runtime.RainbowClaimToken
 
             task.spawn(function()
                 local ok, err = pcall(function()
@@ -3957,15 +3959,15 @@ OTC.Config.SelectedEnchantPet = OTC.Config.SelectedEnchantPet or ""
 OTC.Config.SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot or 1
 OTC.Config.SelectedEnchantTypes = OTC.Config.SelectedEnchantTypes or {}
 
-local EnchantPetDropdown
-local EnchantPetOptions = {}
-local EnchantPetIds = {}
-local SelectedEnchantPetId
-local SelectedEnchantTypes = {}
-local SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot
-local AutoEnchantToken = 0
+OTC.Runtime.EnchantPetDropdown
+OTC.Runtime.EnchantPetOptions = {}
+OTC.Runtime.EnchantPetIds = {}
+OTC.Runtime.SelectedEnchantPetId
+OTC.Runtime.SelectedEnchantTypes = {}
+OTC.Runtime.SelectedEnchantSlot = OTC.Config.SelectedEnchantSlot
+OTC.Runtime.AutoEnchantToken = 0
 
-local EnchantPosition = CFrame.new(
+OTC.Runtime.EnchantPosition = CFrame.new(
     127.143799, 7695.35156, -1802.73132,
     0.972156405, -0.0243377797, -0.23306559,
     0.0274353698, 0.999572992, 0.0100576207,
@@ -3994,7 +3996,7 @@ end
 function GetSelectedEnchantList()
     local result = {}
 
-    for enchantName, enabled in pairs(SelectedEnchantTypes) do
+    for enchantName, enabled in pairs(OTC.Runtime.SelectedEnchantTypes) do
         if enabled and EnchantConfig.IsFilterable(enchantName) then
             table.insert(result, enchantName)
         end
@@ -4006,8 +4008,8 @@ function GetSelectedEnchantList()
 end
 
 function RefreshEnchantPets()
-    table.clear(EnchantPetOptions)
-    table.clear(EnchantPetIds)
+    table.clear(OTC.Runtime.EnchantPetOptions)
+    table.clear(OTC.Runtime.EnchantPetIds)
 
     local _, pets = GetEnchantPetData()
 
@@ -4045,50 +4047,50 @@ function RefreshEnchantPets()
                 label ..= " [" .. table.concat(labels, ", ") .. "]"
             end
 
-            if EnchantPetIds[label] then
+            if OTC.Runtime.EnchantPetIds[label] then
                 label ..= " [" .. tostring(petId) .. "]"
             end
 
-            table.insert(EnchantPetOptions, label)
-            EnchantPetIds[label] = petId
+            table.insert(OTC.Runtime.EnchantPetOptions, label)
+            OTC.Runtime.EnchantPetIds[label] = petId
         end
     end
 
-    table.sort(EnchantPetOptions)
+    table.sort(OTC.Runtime.EnchantPetOptions)
 
-    if EnchantPetDropdown then
+    if OTC.Runtime.EnchantPetDropdown then
         pcall(function()
-            EnchantPetDropdown:Refresh(EnchantPetOptions)
+            OTC.Runtime.EnchantPetDropdown:Refresh(OTC.Runtime.EnchantPetOptions)
         end)
     end
 end
 
-local EnchantTypeOptions = {}
+OTC.Runtime.EnchantTypeOptions = {}
 
 for enchantName in pairs(EnchantConfig.Enchants) do
     if EnchantConfig.IsFilterable(enchantName) then
-        table.insert(EnchantTypeOptions, enchantName)
+        table.insert(OTC.Runtime.EnchantTypeOptions, enchantName)
     end
 end
 
-table.sort(EnchantTypeOptions)
+table.sort(OTC.Runtime.EnchantTypeOptions)
 
 PetsTab:CreateDropdown({
     name = "Enchant Type",
     description = "Select multiple enchants. Stops when a selected enchant is obtained.",
-    options = EnchantTypeOptions,
+    options = OTC.Runtime.EnchantTypeOptions,
     value = {},
     multiSelect = true,
     flag = "SelectedEnchantTypes",
     callback = function(value)
-        table.clear(SelectedEnchantTypes)
+        table.clear(OTC.Runtime.SelectedEnchantTypes)
 
         if type(value) == "table" then
             for _, enchantName in ipairs(value) do
-                SelectedEnchantTypes[enchantName] = true
+                OTC.Runtime.SelectedEnchantTypes[enchantName] = true
             end
         elseif type(value) == "string" then
-            SelectedEnchantTypes[value] = true
+            OTC.Runtime.SelectedEnchantTypes[value] = true
         end
 
         OTC.Config.SelectedEnchantTypes = GetSelectedEnchantList()
@@ -4099,7 +4101,7 @@ PetsTab:CreateDropdown({
     name = "Enchant Slot",
     description = "Choose which enchant slot to roll.",
     options = {"Slot 1", "Slot 2"},
-    value = SelectedEnchantSlot == 2 and "Slot 2" or "Slot 1",
+    value = OTC.Runtime.SelectedEnchantSlot == 2 and "Slot 2" or "Slot 1",
     flag = "SelectedEnchantSlot",
     callback = function(value)
         if type(value) == "table" then
@@ -4107,14 +4109,14 @@ PetsTab:CreateDropdown({
         end
 
         if value == "Slot 1" then
-            SelectedEnchantSlot = 1
+            OTC.Runtime.SelectedEnchantSlot = 1
         elseif value == "Slot 2" then
-            SelectedEnchantSlot = 2
+            OTC.Runtime.SelectedEnchantSlot = 2
         else
             return
         end
 
-        OTC.Config.SelectedEnchantSlot = SelectedEnchantSlot
+        OTC.Config.SelectedEnchantSlot = OTC.Runtime.SelectedEnchantSlot
 
         Window:Notify({
                 icon = 116094782851554,
@@ -4125,10 +4127,10 @@ PetsTab:CreateDropdown({
     end
 })
 
-EnchantPetDropdown = PetsTab:CreateDropdown({
+OTC.Runtime.EnchantPetDropdown = PetsTab:CreateDropdown({
     name = "Select Pet",
     description = "Select the pet to enchant.",
-    options = EnchantPetOptions,
+    options = OTC.Runtime.EnchantPetOptions,
     value = "",
     multiSelect = false,
     flag = "SelectedEnchantPet",
@@ -4137,15 +4139,15 @@ EnchantPetDropdown = PetsTab:CreateDropdown({
             value = value[1]
         end
 
-        SelectedEnchantPetId = EnchantPetIds[value]
-        OTC.Config.SelectedEnchantPet = SelectedEnchantPetId or ""
+        OTC.Runtime.SelectedEnchantPetId = OTC.Runtime.EnchantPetIds[value]
+        OTC.Config.SelectedEnchantPet = OTC.Runtime.SelectedEnchantPetId or ""
 
-        if SelectedEnchantPetId then
+        if OTC.Runtime.SelectedEnchantPetId then
             Window:Notify({
                 icon = 116094782851554,
                 Title = "Enchant",
                 Content = "Selected: " .. tostring(value)
-                    .. "\nPet ID: " .. tostring(SelectedEnchantPetId),
+                    .. "\nPet ID: " .. tostring(OTC.Runtime.SelectedEnchantPetId),
                 Duration = 5
             })
         else
@@ -4162,7 +4164,7 @@ EnchantPetDropdown = PetsTab:CreateDropdown({
 RefreshEnchantPets()
 
 function StartAutoEnchant()
-    if not SelectedEnchantPetId then
+    if not OTC.Runtime.SelectedEnchantPetId then
         Window:Notify({
                 icon = 116094782851554,
             Title = "Auto Enchant",
@@ -4185,21 +4187,21 @@ function StartAutoEnchant()
     end
 
     local _, pets = GetEnchantPetData()
-    local pet = pets and pets.Owned[SelectedEnchantPetId]
+    local pet = pets and pets.Owned[OTC.Runtime.SelectedEnchantPetId]
 
     if not pet then
-        warn("[Auto Enchant] Pet not found:", SelectedEnchantPetId)
+        warn("[Auto Enchant] Pet not found:", OTC.Runtime.SelectedEnchantPetId)
         return false
     end
 
     local currentEnchant
 
-    if SelectedEnchantSlot == 1 then
+    if OTC.Runtime.SelectedEnchantSlot == 1 then
         currentEnchant = pet.Enchant
-    elseif SelectedEnchantSlot == 2 then
+    elseif OTC.Runtime.SelectedEnchantSlot == 2 then
         currentEnchant = pet.Enchant2
     else
-        warn("[Auto Enchant] Invalid slot:", SelectedEnchantSlot)
+        warn("[Auto Enchant] Invalid slot:", OTC.Runtime.SelectedEnchantSlot)
         return false
     end
 
@@ -4211,7 +4213,7 @@ function StartAutoEnchant()
         return false
     end
 
-    root.CFrame = EnchantPosition
+    root.CFrame = OTC.Runtime.EnchantPosition
     task.wait(0.5)
 
     local filtersOK, filtersResult = pcall(function()
@@ -4231,8 +4233,8 @@ function StartAutoEnchant()
 
     local startOK, startResult = pcall(function()
         return EnchantService:AutoStart({
-            PetId = SelectedEnchantPetId,
-            Slot = SelectedEnchantSlot,
+            PetId = OTC.Runtime.SelectedEnchantPetId,
+            Slot = OTC.Runtime.SelectedEnchantSlot,
             Replace = currentEnchant
         })
     end)
@@ -4262,7 +4264,7 @@ function StartAutoEnchant()
     Window:Notify({
                 icon = 116094782851554,
         Title = "Auto Enchant",
-        Content = "Auto Enchant started on Slot " .. SelectedEnchantSlot .. ".",
+        Content = "Auto Enchant started on Slot " .. OTC.Runtime.SelectedEnchantSlot .. ".",
         Duration = 3
     })
 
@@ -4270,7 +4272,7 @@ function StartAutoEnchant()
 end
 
 function ClaimEnchantPet(token)
-    while OTC.Config.AutoEnchant and token == AutoEnchantToken do
+    while OTC.Config.AutoEnchant and token == OTC.Runtime.AutoEnchantToken do
         if LocalPlayer:GetAttribute("EnchantHeldState") == "Done" then
             local heldResult = LocalPlayer:GetAttribute("EnchantHeldResult")
 
@@ -4325,9 +4327,9 @@ PetsTab:CreateToggle({
     flag = "AutoEnchant",
     callback = function(value)
         OTC.Config.AutoEnchant = value
-        AutoEnchantToken += 1
+        OTC.Runtime.AutoEnchantToken += 1
 
-        local token = AutoEnchantToken
+        local token = OTC.Runtime.AutoEnchantToken
 
         if not value then
             StopAutoEnchant()
@@ -4342,13 +4344,13 @@ PetsTab:CreateToggle({
             end
 
             if not success or not result then
-                if token == AutoEnchantToken then
+                if token == OTC.Runtime.AutoEnchantToken then
                     OTC.Config.AutoEnchant = false
                 end
                 return
             end
 
-            if token ~= AutoEnchantToken or not OTC.Config.AutoEnchant then
+            if token ~= OTC.Runtime.AutoEnchantToken or not OTC.Config.AutoEnchant then
                 return
             end
 
@@ -4369,8 +4371,8 @@ task.spawn(function()
     end
 end)
 
-local AutoEquipBestPets = false
-local AutoEquipBestSession = 0
+OTC.Runtime.AutoEquipBestPets = false
+OTC.Runtime.AutoEquipBestSession = 0
 
 PetsTab:CreateToggle({
     name = "Auto Equip Best Pets",
@@ -4378,18 +4380,18 @@ PetsTab:CreateToggle({
     flag = "AutoEquipBestPets",
     value = false,
     callback = function(value)
-        AutoEquipBestPets = value
-        AutoEquipBestSession += 1
+        OTC.Runtime.AutoEquipBestPets = value
+        OTC.Runtime.AutoEquipBestSession += 1
 
-        local session = AutoEquipBestSession
+        local session = OTC.Runtime.AutoEquipBestSession
 
         if not value then
             return
         end
 
         task.spawn(function()
-            while AutoEquipBestPets
-                and AutoEquipBestSession == session do
+            while OTC.Runtime.AutoEquipBestPets
+                and OTC.Runtime.AutoEquipBestSession == session do
 
                 local success, err = pcall(function()
                     PetService.PetActionRequested:Fire({
@@ -4408,12 +4410,12 @@ PetsTab:CreateToggle({
     end,
 })
 
-local EggOptions = {}
-local EggNames = {}
+OTC.Runtime.EggOptions = {}
+OTC.Runtime.EggNames = {}
 
-local OriginalHatchPlay = HatchRenderer.Play
-local OriginalSecretPlay = SecretHatchRenderer.Play
-local OriginalSecretPlayReveal = SecretHatchRenderer.PlayReveal
+OTC.Runtime.OriginalHatchPlay = HatchRenderer.Play
+OTC.Runtime.OriginalSecretPlay = SecretHatchRenderer.Play
+OTC.Runtime.OriginalSecretPlayReveal = SecretHatchRenderer.PlayReveal
 
 function IsHatchAnimationDisabled()
     return workspace:GetAttribute("DisableEggHatchAnimation") == true
@@ -4431,7 +4433,7 @@ HatchRenderer.Play = function(self, ...)
         return
     end
 
-    return OriginalHatchPlay(self, ...)
+    return OTC.Runtime.OriginalHatchPlay(self, ...)
 end
 
 SecretHatchRenderer.Play = function(self, ...)
@@ -4446,7 +4448,7 @@ SecretHatchRenderer.Play = function(self, ...)
         return
     end
 
-    return OriginalSecretPlay(self, ...)
+    return OTC.Runtime.OriginalSecretPlay(self, ...)
 end
 
 SecretHatchRenderer.PlayReveal = function(self, ...)
@@ -4461,7 +4463,7 @@ SecretHatchRenderer.PlayReveal = function(self, ...)
         return
     end
 
-    return OriginalSecretPlayReveal(self, ...)
+    return OTC.Runtime.OriginalSecretPlayReveal(self, ...)
 end
 
 function FormatEggPrice(price)
@@ -4490,19 +4492,19 @@ end
 for eggName, config in pairs(LaunchEggConfig) do
     if type(config) == "table"
         and type(config.Price) == "number" then
-        table.insert(EggNames, eggName)
+        table.insert(OTC.Runtime.EggNames, eggName)
     end
 end
 
-table.sort(EggNames, function(a, b)
+table.sort(OTC.Runtime.EggNames, function(a, b)
     return LaunchEggConfig[a].Price < LaunchEggConfig[b].Price
 end)
 
-for _, eggName in ipairs(EggNames) do
+for _, eggName in ipairs(OTC.Runtime.EggNames) do
     local price = LaunchEggConfig[eggName].Price
 
     table.insert(
-        EggOptions,
+        OTC.Runtime.EggOptions,
         string.format(
             "%s [%s Coins]",
             eggName,
@@ -4511,21 +4513,21 @@ for _, eggName in ipairs(EggNames) do
     )
 end
 
-local EggOptionToName = {}
+OTC.Runtime.EggOptionToName = {}
 
-for _, option in ipairs(EggOptions) do
+for _, option in ipairs(OTC.Runtime.EggOptions) do
     local eggName = option:match("^(.-) %[")
 
     if eggName then
-        EggOptionToName[option] = eggName
+        OTC.Runtime.EggOptionToName[option] = eggName
     end
 end
 
-local SelectedEggOption
+OTC.Runtime.SelectedEggOption
 
-for option, eggName in pairs(EggOptionToName) do
+for option, eggName in pairs(OTC.Runtime.EggOptionToName) do
     if eggName == OTC.Config.SelectedEgg then
-        SelectedEggOption = option
+        OTC.Runtime.SelectedEggOption = option
         break
     end
 end
@@ -4534,10 +4536,10 @@ EggsTab:CreateDropdown({
     name = "Eggs",
     description = "Select an egg to hatch.",
     flag = "Eggs",
-    options = EggOptions,
-    value = SelectedEggOption or EggOptions[1],
+    options = OTC.Runtime.EggOptions,
+    value = OTC.Runtime.SelectedEggOption or OTC.Runtime.EggOptions[1],
     callback = function(value)
-        local eggName = EggOptionToName[value]
+        local eggName = OTC.Runtime.EggOptionToName[value]
 
         if eggName then
             OTC.Config.SelectedEgg = eggName
@@ -4545,23 +4547,23 @@ EggsTab:CreateDropdown({
     end,
 })
 
-local AmountOptions = {
+OTC.Runtime.AmountOptions = {
     "1 Egg",
     "3 Eggs",
     "8 Eggs",
 }
 
-local AmountValues = {
+OTC.Runtime.AmountValues = {
     ["1 Egg"] = 1,
     ["3 Eggs"] = 3,
     ["8 Eggs"] = 8,
 }
 
-local SelectedAmount = "1 Egg"
+OTC.Runtime.SelectedAmount = "1 Egg"
 
-for option, amount in pairs(AmountValues) do
+for option, amount in pairs(OTC.Runtime.AmountValues) do
     if amount == OTC.Config.HatchAmount then
-        SelectedAmount = option
+        OTC.Runtime.SelectedAmount = option
         break
     end
 end
@@ -4570,10 +4572,10 @@ EggsTab:CreateDropdown({
     name = "Amount",
     description = "Choose how many eggs to hatch per request.",
     flag = "Amount",
-    options = AmountOptions,
-    value = SelectedAmount,
+    options = OTC.Runtime.AmountOptions,
+    value = OTC.Runtime.SelectedAmount,
     callback = function(value)
-        local amount = AmountValues[value]
+        local amount = OTC.Runtime.AmountValues[value]
 
         if amount then
             OTC.Config.HatchAmount = amount
@@ -4667,7 +4669,7 @@ function TeleportToEgg()
     return true
 end
 
-local HatchSession = 0
+OTC.Runtime.HatchSession = 0
 
 EggsTab:CreateToggle({
     name = "Auto Hatch",
@@ -4676,9 +4678,9 @@ EggsTab:CreateToggle({
     value = OTC.Config.AutoHatch,
     callback = function(value)
         OTC.Config.AutoHatch = value
-        HatchSession += 1
+        OTC.Runtime.HatchSession += 1
 
-        local session = HatchSession
+        local session = OTC.Runtime.HatchSession
 
         if not value then
             return
@@ -4688,7 +4690,7 @@ EggsTab:CreateToggle({
             if not TeleportToEgg() then
                 warn("[OTC Eggs] Egg model not found or character unavailable.")
 
-                if HatchSession == session then
+                if OTC.Runtime.HatchSession == session then
                     OTC.Config.AutoHatch = false
                 end
 
@@ -4697,7 +4699,7 @@ EggsTab:CreateToggle({
 
             task.wait(1)
 
-            while OTC.Config.AutoHatch and HatchSession == session do
+            while OTC.Config.AutoHatch and OTC.Runtime.HatchSession == session do
                 local success, err = pcall(function()
                     local eggName = OTC.Config.SelectedEgg
                     local amount = OTC.Config.HatchAmount
@@ -4730,8 +4732,8 @@ EggsTab:CreateToggle({
     end,
 })
 
-local AutoDig = false
-local AutoDigSession = 0
+OTC.Runtime.AutoDig = false
+OTC.Runtime.AutoDigSession = 0
 
 function TeleportToDigZone()
     local islands = workspace:FindFirstChild("Ts2Islands")
@@ -4772,7 +4774,7 @@ function TeleportToDigZone()
     return true
 end
 
-local lastRewardClose = 0
+OTC.Runtime.lastRewardClose = 0
 
 function HandleDigReward()
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -4785,11 +4787,11 @@ function HandleDigReward()
             and object.Visible
             and object.Text:find("Tap anywhere to close", 1, true) then
 
-            if os.clock() - lastRewardClose < 2 then
+            if os.clock() - OTC.Runtime.lastRewardClose < 2 then
                 return false
             end
 
-            lastRewardClose = os.clock()
+            OTC.Runtime.lastRewardClose = os.clock()
 
             pcall(function()
                 DigRewardPopup:Close()
@@ -4825,10 +4827,10 @@ MinigamesTab:CreateToggle({
     value = false,
 
     callback = function(value)
-        AutoDig = value
-        AutoDigSession += 1
+        OTC.Runtime.AutoDig = value
+        OTC.Runtime.AutoDigSession += 1
 
-        local session = AutoDigSession
+        local session = OTC.Runtime.AutoDigSession
 
         if not value then
             return
@@ -4836,8 +4838,8 @@ MinigamesTab:CreateToggle({
 
         task.spawn(function()
             if not TeleportToDigZone() then
-                if AutoDigSession == session then
-                    AutoDig = false
+                if OTC.Runtime.AutoDigSession == session then
+                    OTC.Runtime.AutoDig = false
                 end
                 return
             end
@@ -4845,7 +4847,7 @@ MinigamesTab:CreateToggle({
             local lastStartAttempt = 0
             local lastRoundSequence = nil
 
-            while AutoDig and AutoDigSession == session do
+            while OTC.Runtime.AutoDig and OTC.Runtime.AutoDigSession == session do
                 local success = pcall(function()
                     if HandleDigReward() then
                         task.wait(0.5)
@@ -4882,7 +4884,7 @@ MinigamesTab:CreateToggle({
 
                     local sequence = round.Sequence
 
-                    while AutoDig and AutoDigSession == session do
+                    while OTC.Runtime.AutoDig and OTC.Runtime.AutoDigSession == session do
                         if HandleDigReward() then
                             break
                         end
@@ -4921,8 +4923,8 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-local AutoPetDefense = false
-local AutoPetDefenseSession = 0
+OTC.Runtime.AutoPetDefense = false
+OTC.Runtime.AutoPetDefenseSession = 0
 
 function TeleportToColosseum()
     local island = workspace:FindFirstChild("WaveDefence Island")
@@ -5024,10 +5026,10 @@ MinigamesTab:CreateToggle({
     value = false,
 
     callback = function(value)
-        AutoPetDefense = value
-        AutoPetDefenseSession += 1
+        OTC.Runtime.AutoPetDefense = value
+        OTC.Runtime.AutoPetDefenseSession += 1
 
-        local session = AutoPetDefenseSession
+        local session = OTC.Runtime.AutoPetDefenseSession
 
         if not value then
             return
@@ -5036,7 +5038,7 @@ MinigamesTab:CreateToggle({
         task.spawn(function()
             local started = StartPetDefense()
 
-            if not AutoPetDefense or AutoPetDefenseSession ~= session then
+            if not OTC.Runtime.AutoPetDefense or OTC.Runtime.AutoPetDefenseSession ~= session then
                 return
             end
 
@@ -5044,7 +5046,7 @@ MinigamesTab:CreateToggle({
                 return
             end
 
-            while AutoPetDefense and AutoPetDefenseSession == session do
+            while OTC.Runtime.AutoPetDefense and OTC.Runtime.AutoPetDefenseSession == session do
                 local success = pcall(function()
                     if LocalPlayer:GetAttribute("ColosseumActive") ~= true then
                         task.wait(0.25)
@@ -5077,23 +5079,23 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-local MiningController = nil
-local MiningService = nil
-local MiningConfig = nil
+OTC.Runtime.MiningController = nil
+OTC.Runtime.MiningService = nil
+OTC.Runtime.MiningConfig = nil
 
-local MiningLogHistory = {}
-local MAX_MINING_LOGS = 8
+OTC.Runtime.MiningLogHistory = {}
+OTC.Runtime.MAX_MINING_LOGS = 8
 
-local PortalTarget = Vector3.new(12.794289, 5448.823242, -1884.811035)
-local OutsidePosition = Vector3.new(5.45, 5436.12, -1878.03)
+OTC.Runtime.PortalTarget = Vector3.new(12.794289, 5448.823242, -1884.811035)
+OTC.Runtime.OutsidePosition = Vector3.new(5.45, 5436.12, -1878.03)
 
-local REFRESH_INTERVAL = 300
-local RETURN_DELAY = 3
+OTC.Runtime.REFRESH_INTERVAL = 300
+OTC.Runtime.RETURN_DELAY = 3
 
-local MineRefreshInProgress = false
-local MineRefreshBusy = false
-local AutoMineBusy = false
-local MiningIndex = 1
+OTC.Runtime.MineRefreshInProgress = false
+OTC.Runtime.MineRefreshBusy = false
+OTC.Runtime.AutoMineBusy = false
+OTC.Runtime.MiningIndex = 1
 
 local MiningLog = MinigamesTab:CreateText({
     name = "Mining Logs",
@@ -5102,23 +5104,23 @@ local MiningLog = MinigamesTab:CreateText({
 
 function UpdateMiningLog(Message)
     table.insert(
-        MiningLogHistory,
+        OTC.Runtime.MiningLogHistory,
         1,
         "[" .. os.date("%H:%M:%S") .. "] " .. tostring(Message)
     )
 
-    while #MiningLogHistory > MAX_MINING_LOGS do
-        table.remove(MiningLogHistory)
+    while #OTC.Runtime.MiningLogHistory > OTC.Runtime.MAX_MINING_LOGS do
+        table.remove(OTC.Runtime.MiningLogHistory)
     end
 
     pcall(function()
-        MiningLog:Set(table.concat(MiningLogHistory, "\n"))
+        MiningLog:Set(table.concat(OTC.Runtime.MiningLogHistory, "\n"))
     end)
 end
 
 function GetMiningController()
-    if MiningController then
-        return MiningController
+    if OTC.Runtime.MiningController then
+        return OTC.Runtime.MiningController
     end
 
     local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
@@ -5133,7 +5135,7 @@ function GetMiningController()
     local Success, Result = pcall(require, Module)
 
     if Success then
-        MiningController = Result
+        OTC.Runtime.MiningController = Result
         return Result
     end
 
@@ -5142,8 +5144,8 @@ function GetMiningController()
 end
 
 function GetMiningService()
-    if MiningService then
-        return MiningService
+    if OTC.Runtime.MiningService then
+        return OTC.Runtime.MiningService
     end
 
     local CommModule = ReplicatedStorage:FindFirstChild("Packages")
@@ -5167,7 +5169,7 @@ function GetMiningService()
     end)
 
     if Success then
-        MiningService = Result
+        OTC.Runtime.MiningService = Result
         return Result
     end
 
@@ -5176,8 +5178,8 @@ function GetMiningService()
 end
 
 function GetMiningConfig()
-    if MiningConfig then
-        return MiningConfig
+    if OTC.Runtime.MiningConfig then
+        return OTC.Runtime.MiningConfig
     end
 
     local Shared = ReplicatedStorage:FindFirstChild("Shared")
@@ -5193,7 +5195,7 @@ function GetMiningConfig()
     local Success, Result = pcall(require, Module)
 
     if Success then
-        MiningConfig = Result
+        OTC.Runtime.MiningConfig = Result
         return Result
     end
 
@@ -5260,7 +5262,7 @@ function GetMiningBlockPosition(BlockName)
 end
 
 function MoveNearMiningBlock(Position)
-    if MineRefreshInProgress then
+    if OTC.Runtime.MineRefreshInProgress then
         return false
     end
 
@@ -5289,7 +5291,7 @@ function MoveNearMiningBlock(Position)
 
     task.wait(0.3)
 
-    if MineRefreshInProgress then
+    if OTC.Runtime.MineRefreshInProgress then
         return false
     end
 
@@ -5367,7 +5369,7 @@ function GetMiningCandidates()
 end
 
 function HitMiningCell(State, Cell)
-    if MineRefreshInProgress then
+    if OTC.Runtime.MineRefreshInProgress then
         return false
     end
 
@@ -5384,7 +5386,7 @@ function HitMiningCell(State, Cell)
         return false
     end
 
-    if MineRefreshInProgress then
+    if OTC.Runtime.MineRefreshInProgress then
         return false
     end
 
@@ -5402,7 +5404,7 @@ function HitMiningCell(State, Cell)
         return false
     end
 
-    if MineRefreshInProgress then
+    if OTC.Runtime.MineRefreshInProgress then
         return false
     end
 
@@ -5510,13 +5512,13 @@ MinigamesTab:CreateToggle({
 task.spawn(function()
     while task.wait(0.1) do
         if OTC.Config.AutoMine
-            and not AutoMineBusy
-            and not MineRefreshInProgress then
+            and not OTC.Runtime.AutoMineBusy
+            and not OTC.Runtime.MineRefreshInProgress then
 
-            AutoMineBusy = true
+            OTC.Runtime.AutoMineBusy = true
 
             local Success, ErrorMessage = pcall(function()
-                if MineRefreshInProgress then
+                if OTC.Runtime.MineRefreshInProgress then
                     return
                 end
 
@@ -5530,18 +5532,18 @@ task.spawn(function()
                 local Candidates = GetMiningCandidates()
 
                 if #Candidates == 0 then
-                    MiningIndex = 1
+                    OTC.Runtime.MiningIndex = 1
                     return
                 end
 
-                if MiningIndex > #Candidates then
-                    MiningIndex = 1
+                if OTC.Runtime.MiningIndex > #Candidates then
+                    OTC.Runtime.MiningIndex = 1
                 end
 
-                local Cell = Candidates[MiningIndex]
-                MiningIndex += 1
+                local Cell = Candidates[OTC.Runtime.MiningIndex]
+                OTC.Runtime.MiningIndex += 1
 
-                if not MineRefreshInProgress then
+                if not OTC.Runtime.MineRefreshInProgress then
                     HitMiningCell(State, Cell)
                 end
             end)
@@ -5550,7 +5552,7 @@ task.spawn(function()
                 UpdateMiningLog("AutoMine error: " .. tostring(ErrorMessage))
             end
 
-            AutoMineBusy = false
+            OTC.Runtime.AutoMineBusy = false
 
             task.wait(math.max(
                 0.1,
@@ -5563,17 +5565,17 @@ end)
 task.spawn(function()
     while task.wait(0.1) do
         if OTC.Config.AutoMine
-            and not MineRefreshBusy
-            and not MineRefreshInProgress
-            and os.clock() - (OTC.Config.LastMineRefresh or os.clock()) >= REFRESH_INTERVAL then
+            and not OTC.Runtime.MineRefreshBusy
+            and not OTC.Runtime.MineRefreshInProgress
+            and os.clock() - (OTC.Config.LastMineRefresh or os.clock()) >= OTC.Runtime.REFRESH_INTERVAL then
 
-            MineRefreshBusy = true
-            MineRefreshInProgress = true
+            OTC.Runtime.MineRefreshBusy = true
+            OTC.Runtime.MineRefreshInProgress = true
 
             local Success, ErrorMessage = pcall(function()
                 UpdateMiningLog("Mine refresh started")
 
-                while AutoMineBusy do
+                while OTC.Runtime.AutoMineBusy do
                     task.wait(0.05)
                 end
 
@@ -5591,10 +5593,10 @@ task.spawn(function()
                     return
                 end
 
-                Character:PivotTo(CFrame.new(OutsidePosition))
+                Character:PivotTo(CFrame.new(OTC.Runtime.OutsidePosition))
                 UpdateMiningLog("Outside mine; waiting 3 seconds")
 
-                task.wait(RETURN_DELAY)
+                task.wait(OTC.Runtime.RETURN_DELAY)
 
                 if not OTC.Config.AutoMine then
                     return
@@ -5610,9 +5612,9 @@ task.spawn(function()
                     return
                 end
 
-                Character:PivotTo(CFrame.new(PortalTarget))
+                Character:PivotTo(CFrame.new(OTC.Runtime.PortalTarget))
                 OTC.Config.LastMineRefresh = os.clock()
-                MiningIndex = 1
+                OTC.Runtime.MiningIndex = 1
 
                 UpdateMiningLog("Returned to mine")
             end)
@@ -5621,8 +5623,8 @@ task.spawn(function()
                 UpdateMiningLog("Refresh error: " .. tostring(ErrorMessage))
             end
 
-            MineRefreshInProgress = false
-            MineRefreshBusy = false
+            OTC.Runtime.MineRefreshInProgress = false
+            OTC.Runtime.MineRefreshBusy = false
         end
     end
 end)
@@ -5630,8 +5632,8 @@ end)
 function AutoSellSection()
     local CurrentCapacity = 2500
 local SliderObject
-local AutoSellTriggered = false
-local AutoSellBusy = false
+OTC.Runtime.AutoSellTriggered = false
+OTC.Runtime.AutoSellBusy = false
 
 function GetSellPad()
     local MineArea = workspace:FindFirstChild("MineArea")
@@ -5742,7 +5744,7 @@ SliderObject = MinigamesTab:CreateSlider({
         )
 
         if not Dragging then
-            AutoSellTriggered = false
+            OTC.Runtime.AutoSellTriggered = false
         end
     end
 })
@@ -5755,8 +5757,8 @@ MinigamesTab:CreateToggle({
         OTC.Config.AutoSell = Value
 
         if not Value then
-            AutoSellTriggered = false
-            AutoSellBusy = false
+            OTC.Runtime.AutoSellTriggered = false
+            OTC.Runtime.AutoSellBusy = false
         end
     end
 })
@@ -5766,8 +5768,8 @@ task.spawn(function()
         task.wait(0.25)
 
         if not OTC.Config.AutoSell then
-            AutoSellTriggered = false
-            AutoSellBusy = false
+            OTC.Runtime.AutoSellTriggered = false
+            OTC.Runtime.AutoSellBusy = false
             continue
         end
 
@@ -5805,16 +5807,16 @@ task.spawn(function()
         )
 
         if Count < Threshold then
-            AutoSellTriggered = false
+            OTC.Runtime.AutoSellTriggered = false
             continue
         end
 
-        if AutoSellTriggered or AutoSellBusy then
+        if OTC.Runtime.AutoSellTriggered or OTC.Runtime.AutoSellBusy then
             continue
         end
 
-        AutoSellTriggered = true
-        AutoSellBusy = true
+        OTC.Runtime.AutoSellTriggered = true
+        OTC.Runtime.AutoSellBusy = true
 
         task.spawn(function()
             local Success, ErrorMessage = pcall(function()
@@ -5848,7 +5850,7 @@ task.spawn(function()
                     end
                 end
 
-                AutoSellTriggered = false
+                OTC.Runtime.AutoSellTriggered = false
 
                 if not Sold then
                     task.wait(1)
@@ -5857,21 +5859,21 @@ task.spawn(function()
 
             if not Success then
                 warn("[OTC AutoSell]", ErrorMessage)
-                AutoSellTriggered = false
+                OTC.Runtime.AutoSellTriggered = false
             end
 
-            AutoSellBusy = false
+            OTC.Runtime.AutoSellBusy = false
         end)
     end
 end)
 end
 AutoSellSection()
 
-local AutoUpgradePickaxe = false
-local AutoUpgradeBackpack = false
-local UpgradeDelay = 0.1
+OTC.Runtime.AutoUpgradePickaxe = false
+OTC.Runtime.AutoUpgradeBackpack = false
+OTC.Runtime.UpgradeDelay = 0.1
 
-local UpgradeBusy = {
+OTC.Runtime.UpgradeBusy = {
     Tool = false,
     Backpack = false
 }
@@ -5911,8 +5913,8 @@ function TeleportToUpgrade()
 end
 
 function PurchaseItems(Category)
-    if UpgradeBusy[Category] then return end
-    UpgradeBusy[Category] = true
+    if OTC.Runtime.UpgradeBusy[Category] then return end
+    OTC.Runtime.UpgradeBusy[Category] = true
 
     local IsTool = Category == "Tool"
 
@@ -5955,8 +5957,8 @@ function PurchaseItems(Category)
         local BuyAction = IsTool and "BuyTool" or "BuyStorage"
         local EquipAction = IsTool and "EquipTool" or "EquipStorage"
 
-        while (IsTool and AutoUpgradePickaxe)
-            or (not IsTool and AutoUpgradeBackpack) do
+        while (IsTool and OTC.Runtime.AutoUpgradePickaxe)
+            or (not IsTool and OTC.Runtime.AutoUpgradeBackpack) do
 
             if not TeleportToUpgrade() then
                 task.wait(0.5)
@@ -5984,8 +5986,8 @@ function PurchaseItems(Category)
             local BoughtSomething = false
 
             for _, Item in ipairs(Items) do
-                if not ((IsTool and AutoUpgradePickaxe)
-                    or (not IsTool and AutoUpgradeBackpack)) then
+                if not ((IsTool and OTC.Runtime.AutoUpgradePickaxe)
+                    or (not IsTool and OTC.Runtime.AutoUpgradeBackpack)) then
                     break
                 end
 
@@ -6003,7 +6005,7 @@ function PurchaseItems(Category)
                 end)
 
                 if BuySuccess then
-                    task.wait(UpgradeDelay)
+                    task.wait(OTC.Runtime.UpgradeDelay)
 
                     local RefreshSuccess, NewState = pcall(MiningController.GetState)
                     if RefreshSuccess and NewState then
@@ -6025,7 +6027,7 @@ function PurchaseItems(Category)
                                 Service:Purchase(EquipAction, Id)
                             end)
 
-                            task.wait(UpgradeDelay)
+                            task.wait(OTC.Runtime.UpgradeDelay)
 
                             local EquipStateSuccess, EquipState =
                                 pcall(MiningController.GetState)
@@ -6055,7 +6057,7 @@ function PurchaseItems(Category)
         warn("[OTC Upgrade] " .. Category .. ": " .. tostring(ErrorMessage))
     end
 
-    UpgradeBusy[Category] = false
+    OTC.Runtime.UpgradeBusy[Category] = false
 end
 
 MinigamesTab:CreateToggle({
@@ -6063,7 +6065,7 @@ MinigamesTab:CreateToggle({
     description = "Teleport to Upgrade Stand and buy/equip pickaxes",
     flag = "AutoUpgradePickaxe",
     callback = function(Value)
-        AutoUpgradePickaxe = Value
+        OTC.Runtime.AutoUpgradePickaxe = Value
 
         if Value then
             task.spawn(PurchaseItems, "Tool")
@@ -6076,7 +6078,7 @@ MinigamesTab:CreateToggle({
     description = "Teleport to Upgrade Stand and buy/equip backpacks",
     flag = "AutoUpgradeBackpack",
     callback = function(Value)
-        AutoUpgradeBackpack = Value
+        OTC.Runtime.AutoUpgradeBackpack = Value
 
         if Value then
             task.spawn(PurchaseItems, "Backpack")
@@ -6255,18 +6257,18 @@ MinigamesTab:CreateToggle({
     end,
 })
 
-local FishingFolder
-local HeavenFalls
-local Fisherman
-local Pond
+OTC.Runtime.FishingFolder = nil
+OTC.Runtime.HeavenFalls = nil
+OTC.Runtime.Fisherman = nil
+OTC.Runtime.Pond = nil
 
-local Spot = FishingConfig.Spots.HeavenFalls
-local MIN_ZONE_LUCK = 2.5
+OTC.Runtime.Spot = FishingConfig.Spots.HeavenFalls
+OTC.Runtime.MIN_ZONE_LUCK = 2.5
 
-local TravelingToHeaven = false
-local WorldReady = false
+OTC.Runtime.TravelingToHeaven = false
+OTC.Runtime.WorldReady = false
 
-local FishingState = {
+OTC.Runtime.FishingState = {
     AutoBait = false,
     AutoFish = false,
     AutoCollectBowl = false,
@@ -6331,25 +6333,25 @@ function TeleportToFishingModel(Model, Offset)
 end
 
 function GetHeavenObjects()
-    FishingFolder = Workspace:FindFirstChild("Fishing")
+    OTC.Runtime.FishingFolder = Workspace:FindFirstChild("Fishing")
 
-    if not FishingFolder then
-        WorldReady = false
+    if not OTC.Runtime.FishingFolder then
+        OTC.Runtime.WorldReady = false
         return false
     end
 
-    HeavenFalls = FishingFolder:FindFirstChild("HeavenFalls")
+    OTC.Runtime.HeavenFalls = OTC.Runtime.FishingFolder:FindFirstChild("HeavenFalls")
 
-    if not HeavenFalls then
-        WorldReady = false
+    if not OTC.Runtime.HeavenFalls then
+        OTC.Runtime.WorldReady = false
         return false
     end
 
-    Fisherman = FishingFolder:FindFirstChild("Fisherman_HeavenFalls")
-    Pond = HeavenFalls:FindFirstChild("Pond")
-    WorldReady = Fisherman ~= nil and Pond ~= nil
+    OTC.Runtime.Fisherman = OTC.Runtime.FishingFolder:FindFirstChild("Fisherman_HeavenFalls")
+    OTC.Runtime.Pond = OTC.Runtime.HeavenFalls:FindFirstChild("Pond")
+    OTC.Runtime.WorldReady = OTC.Runtime.Fisherman ~= nil and OTC.Runtime.Pond ~= nil
 
-    return WorldReady
+    return OTC.Runtime.WorldReady
 end
 
 function EnsureHeaven()
@@ -6357,11 +6359,11 @@ function EnsureHeaven()
         return true
     end
 
-    if TravelingToHeaven then
+    if OTC.Runtime.TravelingToHeaven then
         return false
     end
 
-    TravelingToHeaven = true
+    OTC.Runtime.TravelingToHeaven = true
 
     local Success, Result = pcall(function()
         return TravelRemote:InvokeServer({
@@ -6372,13 +6374,13 @@ function EnsureHeaven()
 
     if not Success then
         warn("[OTC Fishing] Travel error:", Result)
-        TravelingToHeaven = false
+        OTC.Runtime.TravelingToHeaven = false
         return false
     end
 
     if type(Result) == "table" and Result.Success == false then
         warn("[OTC Fishing] Travel rejected:", Result)
-        TravelingToHeaven = false
+        OTC.Runtime.TravelingToHeaven = false
         return false
     end
 
@@ -6388,7 +6390,7 @@ function EnsureHeaven()
         task.wait(0.5)
     until GetHeavenObjects() or os.clock() - StartTime >= 30
 
-    TravelingToHeaven = false
+    OTC.Runtime.TravelingToHeaven = false
 
     return GetHeavenObjects()
 end
@@ -6399,7 +6401,7 @@ function GetAvailableRodStand()
     end
 
     for Index = 1, 3 do
-        local Stand = HeavenFalls:FindFirstChild("RodStand" .. Index)
+        local Stand = OTC.Runtime.HeavenFalls:FindFirstChild("RodStand" .. Index)
 
         if Stand and Stand:IsA("Model") then
             local InteractText = Stand:GetAttribute("InteractText")
@@ -6448,10 +6450,10 @@ function GetPondData()
     end
 
     return {
-        X = Pond.Position.X,
-        Z = Pond.Position.Z,
-        RadiusX = Pond.Size.X / 2,
-        RadiusZ = Pond.Size.Z / 2
+        X = OTC.Runtime.Pond.Position.X,
+        Z = OTC.Runtime.Pond.Position.Z,
+        RadiusX = OTC.Runtime.Pond.Size.X / 2,
+        RadiusZ = OTC.Runtime.Pond.Size.Z / 2
     }
 end
 
@@ -6468,20 +6470,20 @@ function GetActiveEligibleZones()
         return Result
     end
 
-    for Index, ZoneName in ipairs(Spot.Zones or {}) do
+    for Index, ZoneName in ipairs(OTC.Runtime.Spot.Zones or {}) do
         local Config = FishingConfig.Zones[ZoneName]
 
-        if not Config or Config.Luck < MIN_ZONE_LUCK then
+        if not Config or Config.Luck < OTC.Runtime.MIN_ZONE_LUCK then
             continue
         end
 
-        local Shown = FishingSim.ZoneShown(Spot, Index, Now)
+        local Shown = FishingSim.ZoneShown(OTC.Runtime.Spot, Index, Now)
 
         if Shown <= 0 then
             continue
         end
 
-        local X, Z = FishingSim.ZonePosition(Spot, Index, PondData, Now)
+        local X, Z = FishingSim.ZonePosition(OTC.Runtime.Spot, Index, PondData, Now)
 
         table.insert(Result, {
             Name = ZoneName,
@@ -6513,23 +6515,23 @@ end
 function UpdateFishingAttributes()
     local HasZone = false
 
-    if FishingState.AutoBait and GetHeavenObjects() then
+    if OTC.Runtime.FishingState.AutoBait and GetHeavenObjects() then
         HasZone = HasEligibleZone()
     end
 
     Workspace:SetAttribute(
         "TS2FishingAutoBait",
-        FishingState.AutoBait and FishingState.SelectedBait or nil
+        OTC.Runtime.FishingState.AutoBait and OTC.Runtime.FishingState.SelectedBait or nil
     )
 
     Workspace:SetAttribute(
         "TS2FishingAutoCast",
-        FishingState.AutoBait and HasZone
+        OTC.Runtime.FishingState.AutoBait and HasZone
     )
 
     Workspace:SetAttribute(
         "TS2FishingAutoTap",
-        FishingState.AutoFish
+        OTC.Runtime.FishingState.AutoFish
     )
 end
 
@@ -6642,17 +6644,17 @@ function GetOfferById(Id)
 end
 
 function BuySelectedBait()
-    if FishingState.Buying or not FishingState.SelectedShopOffer then
+    if OTC.Runtime.FishingState.Buying or not OTC.Runtime.FishingState.SelectedShopOffer then
         return
     end
 
-    local Offer = GetOfferById(FishingState.SelectedShopOffer)
+    local Offer = GetOfferById(OTC.Runtime.FishingState.SelectedShopOffer)
 
     if not Offer or Offer.Left <= 0 then
         return
     end
 
-    FishingState.Buying = true
+    OTC.Runtime.FishingState.Buying = true
 
     local Success, Error = pcall(function()
         if not EnsureHeaven() then
@@ -6660,7 +6662,7 @@ function BuySelectedBait()
         end
 
         local Teleported = TeleportToFishingModel(
-            Fisherman,
+            OTC.Runtime.Fisherman,
             CFrame.new(0, 3, -6)
         )
 
@@ -6681,8 +6683,8 @@ function BuySelectedBait()
         warn("[OTC Fishing] Auto Buy error:", Error)
     end
 
-    task.wait(FishingState.BuyDelay)
-    FishingState.Buying = false
+    task.wait(OTC.Runtime.FishingState.BuyDelay)
+    OTC.Runtime.FishingState.Buying = false
 end
 
 function GetEmptyRods()
@@ -6736,15 +6738,15 @@ end
 
 function StartAutoBait()
     task.spawn(function()
-        while FishingState.AutoBait do
-            if not FishingState.Busy then
-                FishingState.Busy = true
+        while OTC.Runtime.FishingState.AutoBait do
+            if not OTC.Runtime.FishingState.Busy then
+                OTC.Runtime.FishingState.Busy = true
 
                 if EnsureHeaven() then
                     local BestZone = GetBestEligibleZone()
 
                     if BestZone then
-                        Workspace:SetAttribute("TS2FishingAutoBait", FishingState.SelectedBait)
+                        Workspace:SetAttribute("TS2FishingAutoBait", OTC.Runtime.FishingState.SelectedBait)
                         Workspace:SetAttribute("TS2FishingAutoCast", true)
 
                         print(
@@ -6760,62 +6762,62 @@ function StartAutoBait()
                     end
                 end
 
-                FishingState.Busy = false
+                OTC.Runtime.FishingState.Busy = false
             end
 
-            task.wait(FishingState.FishingDelay)
+            task.wait(OTC.Runtime.FishingState.FishingDelay)
         end
     end)
 end
 
 function StartAutoFish()
     task.spawn(function()
-        while FishingState.AutoFish do
-            if not FishingState.Busy then
-                FishingState.Busy = true
+        while OTC.Runtime.FishingState.AutoFish do
+            if not OTC.Runtime.FishingState.Busy then
+                OTC.Runtime.FishingState.Busy = true
 
                 if EnsureHeaven() then
                     UpdateFishingAttributes()
                     InteractWithAvailableStand()
                 end
 
-                FishingState.Busy = false
+                OTC.Runtime.FishingState.Busy = false
             end
 
-            task.wait(FishingState.FishingDelay)
+            task.wait(OTC.Runtime.FishingState.FishingDelay)
         end
     end)
 end
 
 function StartAutoCollect()
     task.spawn(function()
-        while FishingState.AutoCollectBowl do
+        while OTC.Runtime.FishingState.AutoCollectBowl do
             if EnsureHeaven() then
                 CollectFishingBowl()
             end
 
-            task.wait(FishingState.CollectDelay)
+            task.wait(OTC.Runtime.FishingState.CollectDelay)
         end
     end)
 end
 
 function StartRemoveEmptyRods()
     task.spawn(function()
-        while FishingState.RemoveEmptyRods do
+        while OTC.Runtime.FishingState.RemoveEmptyRods do
             if EnsureHeaven() then
                 RemoveEmptyFishingRods()
             end
 
-            task.wait(FishingState.RemoveDelay)
+            task.wait(OTC.Runtime.FishingState.RemoveDelay)
         end
     end)
 end
 
 function StartAutoBuy()
     task.spawn(function()
-        while FishingState.AutoBuyBait do
+        while OTC.Runtime.FishingState.AutoBuyBait do
             BuySelectedBait()
-            task.wait(FishingState.BuyDelay)
+            task.wait(OTC.Runtime.FishingState.BuyDelay)
         end
     end)
 end
@@ -6839,7 +6841,7 @@ FishingTab:CreateDropdown({
         local BaitId = GetBaitIdFromName(Selected)
 
         if BaitId then
-            FishingState.SelectedBait = BaitId
+            OTC.Runtime.FishingState.SelectedBait = BaitId
             UpdateFishingAttributes()
         end
     end
@@ -6850,7 +6852,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoBait",
     callback = function(Value)
-        FishingState.AutoBait = Value
+        OTC.Runtime.FishingState.AutoBait = Value
         UpdateFishingAttributes()
 
         if Value then
@@ -6864,7 +6866,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoFish",
     callback = function(Value)
-        FishingState.AutoFish = Value
+        OTC.Runtime.FishingState.AutoFish = Value
         UpdateFishingAttributes()
 
         if Value then
@@ -6878,7 +6880,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoCollect",
     callback = function(Value)
-        FishingState.AutoCollectBowl = Value
+        OTC.Runtime.FishingState.AutoCollectBowl = Value
 
         if Value then
             StartAutoCollect()
@@ -6891,7 +6893,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingRemoveEmptyRods",
     callback = function(Value)
-        FishingState.RemoveEmptyRods = Value
+        OTC.Runtime.FishingState.RemoveEmptyRods = Value
 
         if Value then
             StartRemoveEmptyRods()
@@ -6915,7 +6917,7 @@ FishingTab:CreateDropdown({
             Selected = Option[1]
         end
 
-        FishingState.SelectedShopOffer = GetOfferIdFromName(Selected)
+        OTC.Runtime.FishingState.SelectedShopOffer = GetOfferIdFromName(Selected)
     end
 })
 
@@ -6924,7 +6926,7 @@ FishingTab:CreateToggle({
     value = false,
     flag = "FishingAutoBuyBait",
     callback = function(Value)
-        FishingState.AutoBuyBait = Value
+        OTC.Runtime.FishingState.AutoBuyBait = Value
 
         if Value then
             StartAutoBuy()
@@ -6939,14 +6941,14 @@ FishingTab:CreateToggle({
 
 UpdateFishingAttributes()
 
-local WebhookURL = ""
-local AvatarURL = "https://cdn.discordapp.com/avatars/1416562431882432666/ca20c1ec7d67590754fca8f0b109f9d0.webp?animated=false&size=2048"
+OTC.Runtime.WebhookURL = ""
+OTC.Runtime.AvatarURL = "https://cdn.discordapp.com/avatars/1416562431882432666/ca20c1ec7d67590754fca8f0b109f9d0.webp?animated=false&size=2048"
 
-local MinimumOneIn = 1000
-local DiscordUserID = ""
+OTC.Runtime.MinimumOneIn = 1000
+OTC.Runtime.DiscordUserID = ""
 
-local SendWebhookEnabled = true
-local SendWebhookWithMentionEnabled = true
+OTC.Runtime.SendWebhookEnabled = true
+OTC.Runtime.SendWebhookWithMentionEnabled = true
 
 function getPetImage(petName)
     local petData = PetVisualConfig[petName]
@@ -7008,10 +7010,10 @@ end
 function passesOneInFilter(pet)
     local oneIn = getCalculatedOneIn(pet)
 
-    return oneIn ~= nil and oneIn >= MinimumOneIn
+    return oneIn ~= nil and oneIn >= OTC.Runtime.MinimumOneIn
 end
 
-local RarityColors = {
+OTC.Runtime.RarityColors = {
     Basic = 0xAAAAAA,
     Common = 0xBFC5CC,
     Rare = 0x3498DB,
@@ -7029,8 +7031,8 @@ function getEmbedColor(rarity)
         return 0x2F3136
     end
 
-    if RarityColors[rarity] then
-        return RarityColors[rarity]
+    if OTC.Runtime.RarityColors[rarity] then
+        return OTC.Runtime.RarityColors[rarity]
     end
 
     if rarity:sub(1, 6) == "Secret" then
@@ -7081,12 +7083,12 @@ function abbreviateNumber(value)
 end
 
 function sendWebhook(embed, content)
-    if not SendWebhookEnabled then
+    if not OTC.Runtime.SendWebhookEnabled then
         return false
     end
 
-    if type(WebhookURL) ~= "string"
-        or WebhookURL == "" then
+    if type(OTC.Runtime.WebhookURL) ~= "string"
+        or OTC.Runtime.WebhookURL == "" then
         warn("[OTC] Webhook URL is empty.")
         return false
     end
@@ -7102,23 +7104,23 @@ function sendWebhook(embed, content)
 
     local payload = {
         username = "OTC",
-        avatar_url = AvatarURL,
+        avatar_url = OTC.Runtime.AvatarURL,
         embeds = {embed}
     }
 
     if content
-        and SendWebhookWithMentionEnabled
-        and DiscordUserID ~= "" then
+        and OTC.Runtime.SendWebhookWithMentionEnabled
+        and OTC.Runtime.DiscordUserID ~= "" then
         payload.content = content
         payload.allowed_mentions = {
             parse = {},
-            users = {DiscordUserID}
+            users = {OTC.Runtime.DiscordUserID}
         }
     end
 
     local success, response = pcall(function()
         return httpRequest({
-            Url = WebhookURL,
+            Url = OTC.Runtime.WebhookURL,
             Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json"
@@ -7193,17 +7195,17 @@ function getUserStats()
 end
 
 function getSecretMention(rarity)
-    if not SendWebhookWithMentionEnabled then
+    if not OTC.Runtime.SendWebhookWithMentionEnabled then
         return nil
     end
 
-    if DiscordUserID == "" then
+    if OTC.Runtime.DiscordUserID == "" then
         return nil
     end
 
     if type(rarity) == "string"
         and rarity:sub(1, 6) == "Secret" then
-        return "<@" .. DiscordUserID .. ">"
+        return "<@" .. OTC.Runtime.DiscordUserID .. ">"
     end
 
     return nil
@@ -7293,7 +7295,7 @@ function sendOfflineHatch(data)
     local embed = {
         author = {
             name = "OTC",
-            icon_url = AvatarURL
+            icon_url = OTC.Runtime.AvatarURL
         },
         title = "Offline Hatch Results",
         description = "📋・**Offline Info**",
@@ -7409,7 +7411,7 @@ function sendNormalHatch(result)
             local embed = {
                 author = {
                     name = "OTC",
-                    icon_url = AvatarURL
+                    icon_url = OTC.Runtime.AvatarURL
                 },
                 title = title,
                 description = table.concat(descriptionParts, "\n"),
@@ -7535,7 +7537,7 @@ WebhookTab:CreateInput({
     RemoveTextAfterFocusLost = false,
     Flag = "WebhookURL",
     Callback = function(Value)
-        WebhookURL = Value
+        OTC.Runtime.WebhookURL = Value
     end
 })
 
@@ -7546,7 +7548,7 @@ WebhookTab:CreateInput({
     RemoveTextAfterFocusLost = false,
     Flag = "DiscordUserID",
     Callback = function(Value)
-        DiscordUserID = Value
+        OTC.Runtime.DiscordUserID = Value
     end
 })
 
@@ -7560,7 +7562,7 @@ WebhookTab:CreateInput({
         local number = tonumber(Value)
 
         if number and number >= 1 then
-            MinimumOneIn = math.floor(number)
+            OTC.Runtime.MinimumOneIn = math.floor(number)
         end
     end
 })
@@ -7570,7 +7572,7 @@ WebhookTab:CreateToggle({
     CurrentValue = true,
     Flag = "SendWebhookWithMention",
     Callback = function(Value)
-        SendWebhookWithMentionEnabled = Value
+        OTC.Runtime.SendWebhookWithMentionEnabled = Value
     end
 })
 
@@ -7579,7 +7581,7 @@ WebhookTab:CreateToggle({
     CurrentValue = true,
     Flag = "SendWebhook",
     Callback = function(Value)
-        SendWebhookEnabled = Value
+        OTC.Runtime.SendWebhookEnabled = Value
     end
 })
 
@@ -7589,8 +7591,8 @@ startNormalHatchWatcher()
 task.spawn(function()
     task.wait(2)
     ensureConfigFolder()
-    if isfile(ConfigPath) then
-        local loaded = loadConfig(ConfigFile)
+    if isfile(OTC.Runtime.ConfigPath) then
+        local loaded = loadConfig(OTC.Runtime.ConfigFile)
 
         if loaded then
             print("[OTC] Startup configuration loaded successfully.")
